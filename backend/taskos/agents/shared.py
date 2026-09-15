@@ -26,3 +26,17 @@ def extract_sources(namespace: dict[str, Any]) -> list[dict[str, str]]:
         if isinstance(value, dict) and value.get("sources"):
             return value["sources"]
     return []
+
+
+def normalize_result(result: Any) -> dict[str, Any]:
+    """Turn a task's raw result -- a plain string (Writer) or a
+    {summary, sources} dict (Research/Synthesis) -- into one consistent
+    {"text": str, "sources": [...]} envelope.
+
+    Used to build a Run's final_output: the dashboard always renders
+    `text` as markdown and `sources` as a list, regardless of which agent
+    type happened to produce the last task in the DAG.
+    """
+    if isinstance(result, dict) and result.get("summary"):
+        return {"text": result["summary"], "sources": result.get("sources", [])}
+    return {"text": "" if result is None else str(result), "sources": []}

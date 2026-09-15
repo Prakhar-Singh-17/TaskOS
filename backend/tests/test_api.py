@@ -98,6 +98,16 @@ def test_get_run_includes_tasks_and_layers(client):
     assert body["layers"] == [[r1.task_id], [w1.task_id]]
 
 
+def test_get_run_includes_final_output(client):
+    run = Run(goal="compare things", status=RunStatus.COMPLETED)
+    run.final_output = {"text": "# Final Report\n\nAnthropic builds Claude.", "sources": []}
+    asyncio.run(client.store.create_run(run))
+
+    body = client.get(f"/api/runs/{run.run_id}").json()
+
+    assert body["finalOutput"]["text"].startswith("# Final Report")
+
+
 def test_get_run_reflects_a_status_update_made_through_the_store(client):
     """Regression test: GET /api/runs/{id} crashed with AttributeError after
     store.update_run(status="completed") left a raw string on the Run model

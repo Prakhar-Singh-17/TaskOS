@@ -5,6 +5,9 @@ import GoalForm from './components/GoalForm'
 import RunHistory from './components/RunHistory'
 import TaskGraph from './components/TaskGraph'
 import EventLog from './components/EventLog'
+import FinalResult from './components/FinalResult'
+
+const TERMINAL_STATUSES = new Set(['completed', 'partial', 'failed'])
 
 export default function App() {
   const [runs, setRuns] = useState([])
@@ -68,12 +71,21 @@ export default function App() {
     }
   }
 
+  const isTerminal = currentRun && TERMINAL_STATUSES.has(currentRun.status)
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1>TaskOS</h1>
+        <div className="brand">
+          <span className="brand-mark">T</span>
+          <div>
+            <h1>TaskOS</h1>
+            <p className="brand-subtitle">Agentic task orchestration</p>
+          </div>
+        </div>
         <span className={`conn-indicator ${connected ? 'conn-up' : 'conn-down'}`}>
-          {connected ? 'live' : 'disconnected'}
+          <span className="conn-dot" />
+          {connected ? 'Live' : 'Disconnected'}
         </span>
       </header>
 
@@ -86,14 +98,27 @@ export default function App() {
           {currentRun ? (
             <>
               <div className="run-summary">
-                <h2>{currentRun.goal}</h2>
-                <span className={`status-badge status-${currentRun.status}`}>{currentRun.status}</span>
+                <div className="run-summary-title">
+                  <h2>{currentRun.goal}</h2>
+                  <span className={`status-badge status-${currentRun.status}`}>
+                    {currentRun.status === 'running' && <span className="badge-pulse" />}
+                    {currentRun.status}
+                  </span>
+                </div>
                 {currentRun.error && <p className="task-error">{currentRun.error}</p>}
               </div>
-              <TaskGraph layers={currentRun.layers} tasks={currentRun.tasks} />
+
+              {isTerminal && <FinalResult run={currentRun} />}
+
+              <section className="pipeline-section">
+                <h3 className="section-label">Pipeline</h3>
+                <TaskGraph layers={currentRun.layers} tasks={currentRun.tasks} />
+              </section>
             </>
           ) : (
-            <p className="empty-hint">Select a run, or start a new one above.</p>
+            <div className="empty-state">
+              <p className="empty-hint">Select a run, or start a new one above.</p>
+            </div>
           )}
         </main>
 

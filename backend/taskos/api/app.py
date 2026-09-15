@@ -106,6 +106,7 @@ async def get_run(run_id: str):
         "error": run.error,
         "createdAt": run.created_at,
         "finishedAt": run.finished_at,
+        "finalOutput": run.final_output,
         "layers": layers,
         "tasks": [_task_to_wire(t) for t in run.tasks],
     }

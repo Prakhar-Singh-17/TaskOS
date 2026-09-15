@@ -24,6 +24,7 @@ import asyncio
 import logging
 
 from taskos.agents.registry import dispatch
+from taskos.agents.shared import normalize_result
 from taskos.config import settings
 from taskos.core.events import EventBus, ObservedTools
 from taskos.core.graph import TaskGraph
@@ -99,12 +100,37 @@ async def run_graph(
 
     run.status = RunStatus.COMPLETED if not graph.has_failures() else RunStatus.PARTIAL
     run.finished_at = utcnow()
-    await store.update_run(run.run_id, status=run.status.value, finished_at=run.finished_at)
+    run.final_output = _compute_final_output(graph)
+    await store.update_run(
+        run.run_id, status=run.status.value, finished_at=run.finished_at,
+        final_output=run.final_output,
+    )
     await events.emit(Event(
         run_id=run.run_id, event_type=EventType.RUN_COMPLETED,
-        payload={"status": run.status.value},
+        payload={"status": run.status.value, "finalOutput": run.final_output},
     ))
     return run
+
+
+def _compute_final_output(graph: TaskGraph) -> dict | None:
+    """The run's deliverable: whatever the DAG's terminal task(s) -- those
+    with no dependents -- produced. Normally there's exactly one (the last
+    Writer or Synthesis task); if a plan happens to fan out without
+    converging, every successful terminal task's output is concatenated.
+    None if no terminal task actually completed.
+    """
+    terminal_tasks = [t for t in graph.tasks if not graph.dependents_of(t.task_id)]
+    done = [t for t in terminal_tasks if t.status is TaskStatus.DONE]
+    if not done:
+        return None
+    if len(done) == 1:
+        return normalize_result(done[0].result)
+
+    normalized = [normalize_result(t.result) for t in done]
+    return {
+        "text": "\n\n---\n\n".join(n["text"] for n in normalized),
+        "sources": [s for n in normalized for s in n["sources"]],
+    }
 
 
 async def _run_one(

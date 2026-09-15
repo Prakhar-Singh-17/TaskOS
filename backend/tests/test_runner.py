@@ -118,6 +118,48 @@ async def test_concurrency_is_bounded_by_max_parallel_tasks(monkeypatch, store):
 # -- status transitions & persistence -----------------------------------
 
 
+async def test_final_output_is_the_terminal_task_result(monkeypatch, store):
+    """The DAG's terminal task (no dependents) is the deliverable -- here,
+    synth is the last layer, so its result becomes the run's final_output."""
+    monkeypatch.setattr(runner, "dispatch", Instrumented())
+    run = fan_in_run()
+    await store.create_run(run)
+
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
+
+    assert result.final_output == {"text": "result for synth", "sources": []}
+
+
+async def test_final_output_normalizes_a_dict_result_with_summary_and_sources(monkeypatch, store):
+    async def fake_dispatch(task, *, tools, store):
+        if task.task_id == "synth":
+            return {"summary": "the merged findings", "sources": [{"title": "a", "url": "b"}]}
+        return "irrelevant"
+
+    monkeypatch.setattr(runner, "dispatch", fake_dispatch)
+    run = fan_in_run()
+    await store.create_run(run)
+
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
+
+    assert result.final_output == {
+        "text": "the merged findings",
+        "sources": [{"title": "a", "url": "b"}],
+    }
+
+
+async def test_final_output_is_none_when_the_terminal_task_never_completed(monkeypatch, store):
+    fake = Instrumented(fail={"r1", "r2", "r3"})  # cascades to block synth entirely
+    monkeypatch.setattr(runner, "dispatch", fake)
+    run = fan_in_run()
+    await store.create_run(run)
+
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
+
+    assert result.tasks[-1].status is TaskStatus.BLOCKED
+    assert result.final_output is None
+
+
 async def test_all_tasks_end_up_done_and_persisted(monkeypatch, store):
     monkeypatch.setattr(runner, "dispatch", Instrumented())
     run = fan_in_run()
