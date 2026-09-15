@@ -77,9 +77,22 @@ All backend tests are hermetic -- no real network calls, no Gemini/Tavily/Mongo
 required. Manual live-integration scripts (real API calls) live in
 `backend/scripts/smoke_*.py` and are run by hand, not part of the suite.
 
-## Deploying
+## Deploying (Render)
 
-Backend and frontend are two independent services (e.g. two Render
-services): the backend as a Python web service (`uvicorn taskos.api.app:asgi_app`),
-the frontend as a static site (`npm run build`, publish `frontend/dist`) with
-`VITE_API_URL` pointed at the deployed backend's URL.
+`render.yaml` at the repo root is a Render Blueprint defining both services:
+
+1. Push this repo to GitHub.
+2. In Render: **New → Blueprint**, point it at the repo. It creates
+   `taskos-backend` (Python web service) and `taskos-frontend` (static site).
+3. Render never reads secrets from the committed blueprint -- open each
+   service's **Environment** tab and set the values marked `sync: false`
+   (`GEMINI_API_KEY`, `TAVILY_API_KEY`, `MONGODB_URI`).
+4. Once `taskos-backend` has a URL, update `taskos-frontend`'s `VITE_API_URL`
+   to it and redeploy the frontend (Vite bakes this in at build time, so a
+   rebuild is required if it changes).
+5. Optionally tighten the backend's `ALLOWED_ORIGINS` from `*` to the
+   frontend's exact URL once you know it, and redeploy the backend.
+
+No manual dashboard setup is required beyond step 3-4 -- the blueprint
+handles build/start commands, the health check path (`/healthz`), and the
+`$PORT` binding Render expects.

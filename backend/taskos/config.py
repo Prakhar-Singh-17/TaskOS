@@ -46,6 +46,19 @@ class Settings:
     api_host: str = field(default_factory=lambda: os.getenv("API_HOST", "127.0.0.1"))
     api_port: int = field(default_factory=lambda: _int_env("API_PORT", 8000))
 
+    # Comma-separated list of origins allowed to call the API/websocket, e.g.
+    # "https://taskos-frontend.onrender.com". Defaults to "*" (open) for local
+    # dev; set explicitly in production once the frontend's real URL is known.
+    allowed_origins_raw: str = field(
+        default_factory=lambda: os.getenv("ALLOWED_ORIGINS", "*")
+    )
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        if self.allowed_origins_raw.strip() == "*":
+            return ["*"]
+        return [o.strip() for o in self.allowed_origins_raw.split(",") if o.strip()]
+
     @property
     def use_in_memory_store(self) -> bool:
         """No Mongo URI configured -> fall back to the in-process store."""

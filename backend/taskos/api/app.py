@@ -5,9 +5,9 @@ Socket.io broadcasts every event on the EventBus to connected dashboard
 clients as it happens. The two share one ASGI app (`asgi_app`, served by
 uvicorn) so they run on the same port.
 
-CORS and Socket.io are wide open (`*`) -- fine for this single-operator demo
-project; a real multi-tenant deployment would restrict both to the actual
-frontend origin.
+CORS and Socket.io allow origins from settings.allowed_origins (default `*`
+for local dev; set ALLOWED_ORIGINS to the deployed frontend's URL in
+production, see .env.example).
 
 Run with:  uvicorn taskos.api.app:asgi_app --reload --port 8000
 """
@@ -22,6 +22,7 @@ import socketio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from taskos.config import settings
 from taskos.core.events import EventBus
 from taskos.core.graph import TaskGraph
 from taskos.core.models import new_id
@@ -32,7 +33,7 @@ from taskos.api.schemas import CreateRunRequest, CreateRunResponse
 
 logger = logging.getLogger(__name__)
 
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=settings.allowed_origins)
 
 
 @asynccontextmanager
@@ -60,7 +61,7 @@ async def _broadcast_to_dashboard(event) -> None:
 
 app = FastAPI(title="TaskOS API", lifespan=lifespan)
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware, allow_origins=settings.allowed_origins, allow_methods=["*"], allow_headers=["*"],
 )
 
 
@@ -114,6 +115,13 @@ async def get_run(run_id: str):
 async def get_run_events(run_id: str):
     events = await app.state.store.get_events(run_id)
     return [e.to_wire() for e in events]
+
+
+@app.get("/healthz")
+async def health_check():
+    """Liveness probe for Render/uptime monitors -- deliberately does no
+    work (no store/tool calls) so it stays fast even if a dependency is slow."""
+    return {"status": "ok"}
 
 
 @app.get("/api/tools")

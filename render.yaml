@@ -1,0 +1,43 @@
+# Render Blueprint: deploys both services from this one repo.
+# In the Render dashboard: New -> Blueprint -> point at this repo.
+#
+# You still need to set the secret env vars below in the Render dashboard
+# after the blueprint creates the services (Render deliberately never reads
+# secret values from a committed file) -- see .env.example for what each is.
+services:
+  - type: web
+    name: taskos-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn taskos.api.app:asgi_app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false # set manually in the Render dashboard
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: taskos
+      - key: MAX_TASK_RETRIES
+        value: "3"
+      - key: MAX_PARALLEL_TASKS
+        value: "4"
+      - key: ALLOWED_ORIGINS
+        value: "*" # tighten to the frontend's URL below once it's known
+
+  - type: web
+    name: taskos-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        # Fill in with the backend service's actual Render URL once deployed
+        # (Vite bakes this in at build time -- a rebuild is needed if it changes).
+        value: https://taskos-backend.onrender.com
