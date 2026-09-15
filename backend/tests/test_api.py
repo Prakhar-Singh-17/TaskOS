@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from taskos.api import app as app_module
-from taskos.core.models import AgentType, Event, EventType, Run, RunStatus, Task
+from taskos.core.models import AgentType, Attempt, Event, EventType, FailureKind, Run, RunStatus, Task
 from taskos.store.memory import MemoryStore
 
 
@@ -110,6 +110,37 @@ def test_get_run_reflects_a_status_update_made_through_the_store(client):
 
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
+
+
+def test_get_run_serializes_retry_history_for_the_dashboard(client):
+    """The dashboard's retry badge and expanded attempt list (TaskNode.jsx)
+    read task.attempts[].{ok,failureKind,note} -- verify the API actually
+    produces that exact shape for a task that failed once then recovered."""
+    run = Run(goal="retry demo", status=RunStatus.COMPLETED)
+    task = Task(run_id=run.run_id, description="research it", assigned_agent=AgentType.RESEARCH)
+    task.attempts = [
+        Attempt(number=1, ok=False, failure_kind=FailureKind.EMPTY_RESULT,
+                error="No search results for query: 'x'",
+                note="reworded query: 'x' -> 'broader x'"),
+        Attempt(number=2, ok=True),
+    ]
+    task.status = "done"
+    run.tasks = [task]
+    asyncio.run(client.store.create_run(run))
+
+    body = client.get(f"/api/runs/{run.run_id}").json()
+
+    wire_task = body["tasks"][0]
+    assert len(wire_task["attempts"]) == 2
+    assert wire_task["attempts"][0] == {
+        "number": 1, "ok": False, "failureKind": "empty_result",
+        "error": "No search results for query: 'x'",
+        "note": "reworded query: 'x' -> 'broader x'",
+        "startedAt": wire_task["attempts"][0]["startedAt"],  # timestamp, just check it's present
+        "finishedAt": None,
+    }
+    assert wire_task["attempts"][1]["ok"] is True
+    assert wire_task["attempts"][1]["failureKind"] is None
 
 
 def test_get_run_events_returns_the_event_log(client):
