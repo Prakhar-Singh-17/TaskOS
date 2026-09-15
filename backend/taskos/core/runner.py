@@ -6,10 +6,15 @@ only ever waits on its own dependencies -- unrelated branches of the DAG make
 progress independently, which is what makes 3 parallel Research tasks
 actually run in parallel instead of one after another.
 
-This module only handles scheduling and status transitions. It does not retry
-failed tasks (that's step 6) and does not emit dashboard events yet (step 7).
-Dispatching a task to its agent goes through agents/registry.py, so the
-runner never needs to know what a "research" or "writer" task actually does.
+Each task attempt is classified on failure (core/retry.py) and retried up to
+`task.max_attempts` times if the failure kind is retryable -- an empty search
+result gets its query reworded before the next try, a malformed-output or
+tool failure just retries as-is, and a failure kind outside RETRYABLE_FAILURES
+(or an exhausted retry budget) marks the task FAILED immediately.
+
+This module does not emit dashboard events yet (step 7). Dispatching a task
+to its agent goes through agents/registry.py, so the runner never needs to
+know what a "research" or "writer" task actually does.
 """
 
 from __future__ import annotations
@@ -20,7 +25,17 @@ import logging
 from taskos.agents.registry import dispatch
 from taskos.config import settings
 from taskos.core.graph import TaskGraph
-from taskos.core.models import Run, RunStatus, Task, TaskStatus, utcnow
+from taskos.core.models import (
+    RETRYABLE_FAILURES,
+    Attempt,
+    FailureKind,
+    Run,
+    RunStatus,
+    Task,
+    TaskStatus,
+    utcnow,
+)
+from taskos.core.retry import classify_failure, prepare_retry
 from taskos.mcp_client.client import MCPClientManager
 from taskos.store.base import StateStore
 
@@ -48,6 +63,7 @@ async def run_graph(
         newly_blocked = graph.newly_blocked_tasks()
         for task in newly_blocked:
             task.status = TaskStatus.BLOCKED
+            task.failure_kind = FailureKind.DEPENDENCY_FAILED
             task.error = "One or more dependencies failed"
             await store.save_task(task)
 
@@ -75,22 +91,68 @@ async def run_graph(
 async def _run_one(
     task: Task, *, tools: MCPClientManager, store: StateStore, semaphore: asyncio.Semaphore
 ) -> None:
-    """Run a single task's agent and record the outcome. Never raises --
-    an agent failure becomes a FAILED task status, not a crashed runner."""
+    """Run a task's agent, retrying on classified, retryable failures up to
+    `task.max_attempts` times. Never raises -- a failure that survives every
+    retry becomes a FAILED task status, not a crashed runner."""
     async with semaphore:
         task.status = TaskStatus.RUNNING
         task.started_at = utcnow()
         await store.save_task(task)
 
-        try:
-            result = await dispatch(task, tools=tools, store=store)
-        except Exception as exc:
-            task.status = TaskStatus.FAILED
-            task.error = f"{type(exc).__name__}: {exc}"
-            logger.warning("Task %s (%s) failed: %s", task.task_id, task.assigned_agent.value, exc)
-        else:
-            task.status = TaskStatus.DONE
-            task.result = result
+        while True:
+            attempt = Attempt(number=task.attempt_count + 1)
+
+            try:
+                result = await dispatch(task, tools=tools, store=store)
+            except Exception as exc:
+                attempt.ok = False
+                attempt.failure_kind = classify_failure(exc)
+                attempt.error = f"{type(exc).__name__}: {exc}"
+                task.failure_kind = attempt.failure_kind
+                task.error = attempt.error
+
+                will_retry = (
+                    attempt.failure_kind in RETRYABLE_FAILURES
+                    and attempt.number < task.max_attempts
+                )
+                if will_retry:
+                    try:
+                        attempt.note = await prepare_retry(task, attempt.failure_kind)
+                    except Exception as prep_exc:
+                        # The recovery step itself failed (e.g. the reword call
+                        # hit a quota limit) -- degrade gracefully and retry
+                        # with the task unchanged rather than crashing the run.
+                        attempt.note = f"retry preparation failed ({prep_exc}); retrying unchanged"
+                        logger.warning(
+                            "Task %s (%s): prepare_retry failed, retrying unchanged: %s",
+                            task.task_id, task.assigned_agent.value, prep_exc,
+                        )
+                    logger.info(
+                        "Task %s (%s) attempt %d failed (%s), retrying: %s",
+                        task.task_id, task.assigned_agent.value, attempt.number,
+                        attempt.failure_kind.value, attempt.note or "unchanged",
+                    )
+                else:
+                    task.status = TaskStatus.FAILED
+                    logger.warning(
+                        "Task %s (%s) failed permanently after %d attempt(s): %s",
+                        task.task_id, task.assigned_agent.value, attempt.number, exc,
+                    )
+
+                attempt.finished_at = utcnow()
+                task.attempts.append(attempt)
+                await store.save_task(task)
+                if will_retry:
+                    continue
+                break
+            else:
+                attempt.ok = True
+                attempt.finished_at = utcnow()
+                task.attempts.append(attempt)
+                task.status = TaskStatus.DONE
+                task.result = result
+                await store.save_task(task)
+                break
 
         task.finished_at = utcnow()
         await store.save_task(task)

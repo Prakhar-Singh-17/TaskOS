@@ -10,6 +10,7 @@ sees it.
 from __future__ import annotations
 
 from taskos.agents.llm import LLMMalformedOutputError, generate_json
+from taskos.config import settings
 from taskos.core.graph import InvalidGraphError, TaskGraph
 from taskos.core.models import AgentType, Run, Task
 
@@ -78,7 +79,12 @@ async def plan(goal: str) -> Run:
         if agent not in _ASSIGNABLE_AGENTS:
             raise LLMMalformedOutputError(f"Task '{label}' cannot be assigned to '{agent_name}'")
 
-        task = Task(run_id=run.run_id, description=description, assigned_agent=agent)
+        task = Task(
+            run_id=run.run_id,
+            description=description,
+            assigned_agent=agent,
+            max_attempts=settings.max_task_retries,
+        )
         label_to_id[label] = task.task_id
         depends_on_labels[task.task_id] = item.get("depends_on") or []
         tasks.append(task)

@@ -20,6 +20,13 @@ SUMMARY_SYSTEM_INSTRUCTION = (
     "plain prose, 3-6 sentences. Do not invent facts that aren't in the results."
 )
 
+REWORD_SYSTEM_INSTRUCTION = (
+    "You rewrite web search queries that returned zero results into a better "
+    "query. Make it broader, simpler, or differently phrased -- whatever is "
+    "most likely to find relevant information. Respond with ONLY the new "
+    "query text, no quotes, no explanation."
+)
+
 
 def _build_summary_prompt(task_description: str, search_data: dict[str, Any]) -> str:
     lines = [f"Research task: {task_description}", "", "Search results:"]
@@ -66,3 +73,17 @@ async def run(task: Task, *, tools: MCPClientManager, store: StateStore) -> dict
     }
     await store.write_state(task.run_id, task.task_id, "findings", findings)
     return findings
+
+
+async def reword_query(original_query: str) -> str:
+    """Ask Gemini for a better phrasing of a query that returned nothing.
+
+    Called by core/retry.py between attempts when a search comes back empty
+    -- this is the actual "retry with reworded query" v1 failure scenario.
+    """
+    reworded = await generate_text(
+        f"This search query returned zero results: {original_query!r}\n"
+        f"Suggest a better query.",
+        system_instruction=REWORD_SYSTEM_INSTRUCTION,
+    )
+    return reworded.strip().strip('"')
