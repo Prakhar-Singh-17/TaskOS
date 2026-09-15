@@ -3,21 +3,17 @@
 import pytest
 
 from taskos.agents.registry import AGENT_REGISTRY, dispatch
-from taskos.agents import research, writer
+from taskos.agents import research, synthesis, writer
 from taskos.core.models import AgentType, Task
 
 RUN_ID = "run_test"
 
 
-def test_registry_maps_research_and_writer():
+def test_registry_maps_every_assignable_agent_type():
     assert AGENT_REGISTRY[AgentType.RESEARCH] is research.run
     assert AGENT_REGISTRY[AgentType.WRITER] is writer.run
-
-
-def test_synthesis_is_not_registered_yet():
-    """Synthesis lands in step 5 -- until then, dispatch must fail loudly
-    rather than silently doing nothing."""
-    assert AgentType.SYNTHESIS not in AGENT_REGISTRY
+    assert AGENT_REGISTRY[AgentType.SYNTHESIS] is synthesis.run
+    assert AgentType.SUPERVISOR not in AGENT_REGISTRY  # the supervisor plans, it isn't dispatched to
 
 
 async def test_dispatch_calls_the_registered_agent_function(monkeypatch):
@@ -39,7 +35,7 @@ async def test_dispatch_calls_the_registered_agent_function(monkeypatch):
 
 
 async def test_dispatch_raises_for_unregistered_agent_type():
-    task = Task(run_id=RUN_ID, description="x", assigned_agent=AgentType.SYNTHESIS)
+    task = Task(run_id=RUN_ID, description="x", assigned_agent=AgentType.SUPERVISOR)
 
-    with pytest.raises(ValueError, match="No agent registered for 'synthesis'"):
+    with pytest.raises(ValueError, match="No agent registered for 'supervisor'"):
         await dispatch(task, tools=None, store=None)

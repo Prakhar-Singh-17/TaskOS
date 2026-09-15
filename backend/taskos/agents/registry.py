@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
-from taskos.agents import research, writer
+from taskos.agents import research, synthesis, writer
 from taskos.core.models import AgentType, Task
 from taskos.mcp_client.client import MCPClientManager
 from taskos.store.base import StateStore
@@ -21,6 +21,7 @@ AgentFn = Callable[..., Awaitable[Any]]
 AGENT_REGISTRY: dict[AgentType, AgentFn] = {
     AgentType.RESEARCH: research.run,
     AgentType.WRITER: writer.run,
+    AgentType.SYNTHESIS: synthesis.run,
 }
 
 

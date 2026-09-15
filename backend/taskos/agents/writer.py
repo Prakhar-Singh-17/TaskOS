@@ -4,10 +4,9 @@ dependency tasks (Research or Synthesis) left in shared state.
 
 from __future__ import annotations
 
-from typing import Any
-
 from taskos.agents.errors import MissingDependencyOutputError
 from taskos.agents.llm import generate_text
+from taskos.agents.shared import extract_summary
 from taskos.core.models import Task
 from taskos.mcp_client.client import MCPClientManager
 from taskos.store.base import StateStore
@@ -19,23 +18,10 @@ WRITER_SYSTEM_INSTRUCTION = (
 )
 
 
-def _extract_summary(namespace: dict[str, Any]) -> str | None:
-    """Pull the 'summary' out of whichever key a dependency wrote.
-
-    Research writes under the key "findings"; Synthesis (step 5) writes under
-    "synthesis". Both store a dict containing "summary", so the writer doesn't
-    need to know which agent type produced its input -- just that it did.
-    """
-    for value in namespace.values():
-        if isinstance(value, dict) and value.get("summary"):
-            return value["summary"]
-    return None
-
-
 def _build_prompt(task_description: str, findings_by_task: dict[str, dict]) -> str:
     lines = [f"Writing task: {task_description}", "", "Findings to draw on:"]
     for dep_task_id, namespace in findings_by_task.items():
-        summary = _extract_summary(namespace)
+        summary = extract_summary(namespace)
         if summary:
             lines.append(f"\nSource ({dep_task_id}):\n{summary}")
     return "\n".join(lines)
@@ -53,7 +39,7 @@ async def run(task: Task, *, tools: MCPClientManager, store: StateStore) -> str:
     usable findings in shared state.
     """
     namespaces = await store.read_namespaces(task.run_id, task.depends_on)
-    if not any(_extract_summary(ns) for ns in namespaces.values()):
+    if not any(extract_summary(ns) for ns in namespaces.values()):
         raise MissingDependencyOutputError(
             f"No usable findings from dependencies: {task.depends_on}"
         )
