@@ -98,7 +98,8 @@ async def run_graph(
         )
 
     run.status = RunStatus.COMPLETED if not graph.has_failures() else RunStatus.PARTIAL
-    await store.update_run(run.run_id, status=run.status.value)
+    run.finished_at = utcnow()
+    await store.update_run(run.run_id, status=run.status.value, finished_at=run.finished_at)
     await events.emit(Event(
         run_id=run.run_id, event_type=EventType.RUN_COMPLETED,
         payload={"status": run.status.value},

@@ -9,7 +9,7 @@ the events it should, and handle a planning failure without crashing.
 import pytest
 
 from taskos.core import orchestrator
-from taskos.agents.llm import LLMMalformedOutputError
+from taskos.agents.llm import LLMError, LLMMalformedOutputError
 from taskos.core.events import EventBus
 from taskos.core.models import AgentType, EventType, Run, RunStatus, Task
 from taskos.store.memory import MemoryStore
@@ -92,6 +92,49 @@ async def test_planning_failure_produces_a_failed_run_without_crashing(monkeypat
     assert result.status is RunStatus.FAILED
     assert "model returned garbage" in result.error
     assert result.tasks == []
+    assert result.finished_at is not None
 
     emitted = [e.event_type for e in await store.get_events(result.run_id)]
     assert emitted == [EventType.RUN_CREATED, EventType.RUN_COMPLETED]
+
+
+async def test_a_non_malformed_llm_error_also_ends_the_run_failed(monkeypatch, store):
+    """Regression test: a quota/timeout/network failure during planning
+    (LLMError, not the narrower LLMMalformedOutputError) used to propagate
+    out of this fire-and-forget coroutine uncaught -- since nothing awaits
+    it, the run was left stuck in PLANNING forever with no error recorded.
+    Caught by live testing against a real Gemini 429."""
+
+    async def quota_exhausted_plan(goal: str) -> Run:
+        raise LLMError("ClientError: 429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr(orchestrator.supervisor, "plan", quota_exhausted_plan)
+
+    events = EventBus(store)
+    result = await orchestrator.execute_goal("test goal", tools=None, store=store, events=events)
+
+    assert result.status is RunStatus.FAILED
+    assert "RESOURCE_EXHAUSTED" in result.error
+    emitted = [e.event_type for e in await store.get_events(result.run_id)]
+    assert emitted == [EventType.RUN_CREATED, EventType.RUN_COMPLETED]
+
+
+async def test_a_failure_after_planning_also_ends_the_run_failed(monkeypatch, store):
+    """A failure in the wiring between a successful plan and run_graph()
+    taking over (e.g. a store write failing) must not leave the run stuck
+    in RUNNING with no explanation either."""
+
+    async def fake_plan(goal: str) -> Run:
+        return make_plan(goal)
+
+    async def broken_run_graph(run, *, tools, store, events, max_parallel_tasks=None):
+        raise RuntimeError("the store connection dropped")
+
+    monkeypatch.setattr(orchestrator.supervisor, "plan", fake_plan)
+    monkeypatch.setattr(orchestrator, "run_graph", broken_run_graph)
+
+    events = EventBus(store)
+    result = await orchestrator.execute_goal("test goal", tools=None, store=store, events=events)
+
+    assert result.status is RunStatus.FAILED
+    assert "the store connection dropped" in result.error

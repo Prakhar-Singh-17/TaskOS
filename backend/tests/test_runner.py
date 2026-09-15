@@ -121,12 +121,20 @@ async def test_concurrency_is_bounded_by_max_parallel_tasks(monkeypatch, store):
 async def test_all_tasks_end_up_done_and_persisted(monkeypatch, store):
     monkeypatch.setattr(runner, "dispatch", Instrumented())
     run = fan_in_run()
+    await store.create_run(run)  # real usage always creates the run row first (see orchestrator.py)
 
     result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     assert all(t.status is TaskStatus.DONE for t in result.tasks)
     assert all(t.result == f"result for {t.task_id}" for t in result.tasks)
     assert all(t.started_at is not None and t.finished_at is not None for t in result.tasks)
+
+    # Regression check: the *run's* own finished_at was never being set --
+    # only found by inspecting a real completed run's API response, where it
+    # showed null despite status: completed.
+    assert result.finished_at is not None
+    persisted_run = await store.get_run(run.run_id)
+    assert persisted_run.finished_at is not None
 
     persisted = await store.get_tasks(run.run_id)
     assert {t.task_id: t.status for t in persisted} == {
