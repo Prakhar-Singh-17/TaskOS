@@ -7,6 +7,7 @@ import pytest
 
 from taskos.agents.errors import EmptyResultError
 from taskos.core import runner
+from taskos.core.events import EventBus
 from taskos.core.models import AgentType, FailureKind, Run, RunStatus, Task, TaskStatus
 from taskos.store.memory import MemoryStore
 
@@ -66,7 +67,7 @@ async def test_retries_on_empty_result_and_succeeds_within_the_cap(monkeypatch, 
     monkeypatch.setattr(research, "reword_query", fake_reword_query)
 
     run = make_run(max_attempts=3)
-    result = await runner.run_graph(run, tools=None, store=store)
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     task = result.tasks[0]
     assert task.status is TaskStatus.DONE
@@ -95,7 +96,7 @@ async def test_exhausts_retries_and_ends_failed(monkeypatch, store):
     monkeypatch.setattr(research, "reword_query", fake_reword_query)
 
     run = make_run(max_attempts=3)
-    result = await runner.run_graph(run, tools=None, store=store)
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     task = result.tasks[0]
     assert task.status is TaskStatus.FAILED
@@ -110,7 +111,7 @@ async def test_unretryable_failure_kind_fails_after_a_single_attempt(monkeypatch
     monkeypatch.setattr(runner, "dispatch", fake_dispatch)
 
     run = make_run(max_attempts=3)
-    result = await runner.run_graph(run, tools=None, store=store)
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     task = result.tasks[0]
     assert task.status is TaskStatus.FAILED
@@ -131,7 +132,7 @@ async def test_survives_prepare_retry_itself_failing(monkeypatch, store):
     monkeypatch.setattr(runner, "prepare_retry", broken_prepare_retry)
 
     run = make_run(max_attempts=3)
-    result = await runner.run_graph(run, tools=None, store=store)
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     task = result.tasks[0]
     assert task.status is TaskStatus.DONE  # second attempt still ran, with the same query
@@ -150,7 +151,7 @@ async def test_attempt_history_is_persisted_to_the_store(monkeypatch, store):
     monkeypatch.setattr(research, "reword_query", fake_reword_query)
 
     run = make_run(max_attempts=3)
-    await runner.run_graph(run, tools=None, store=store)
+    await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     persisted = (await store.get_tasks(RUN_ID))[0]
     assert len(persisted.attempts) == 2

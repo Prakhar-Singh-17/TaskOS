@@ -12,9 +12,10 @@ result gets its query reworded before the next try, a malformed-output or
 tool failure just retries as-is, and a failure kind outside RETRYABLE_FAILURES
 (or an exhausted retry budget) marks the task FAILED immediately.
 
-This module does not emit dashboard events yet (step 7). Dispatching a task
-to its agent goes through agents/registry.py, so the runner never needs to
-know what a "research" or "writer" task actually does.
+Every status transition and tool call is also emitted onto an EventBus
+(core/events.py) -- that's the entire feed the dashboard renders from.
+Dispatching a task to its agent goes through agents/registry.py, so the
+runner never needs to know what a "research" or "writer" task actually does.
 """
 
 from __future__ import annotations
@@ -24,10 +25,13 @@ import logging
 
 from taskos.agents.registry import dispatch
 from taskos.config import settings
+from taskos.core.events import EventBus, ObservedTools
 from taskos.core.graph import TaskGraph
 from taskos.core.models import (
     RETRYABLE_FAILURES,
     Attempt,
+    Event,
+    EventType,
     FailureKind,
     Run,
     RunStatus,
@@ -47,13 +51,15 @@ async def run_graph(
     *,
     tools: MCPClientManager,
     store: StateStore,
+    events: EventBus,
     max_parallel_tasks: int | None = None,
 ) -> Run:
     """Execute every task in `run` to completion, respecting dependencies.
 
     Mutates and returns `run`. Each task's status/result/error is persisted
     via `store.save_task()` as soon as it changes, not just at the end, so an
-    observer watching the store mid-run sees real progress.
+    observer watching the store (or the dashboard, via `events`) mid-run sees
+    real progress.
     """
     graph = TaskGraph(run.tasks)
     graph.validate()
@@ -66,6 +72,11 @@ async def run_graph(
             task.failure_kind = FailureKind.DEPENDENCY_FAILED
             task.error = "One or more dependencies failed"
             await store.save_task(task)
+            await events.emit(Event(
+                run_id=run.run_id, task_id=task.task_id,
+                agent_id=task.assigned_agent.value, event_type=EventType.TASK_BLOCKED,
+                payload={"reason": task.error},
+            ))
 
         ready = graph.ready_tasks()
         if not ready:
@@ -80,30 +91,45 @@ async def run_graph(
             break
 
         await asyncio.gather(
-            *(_run_one(task, tools=tools, store=store, semaphore=semaphore) for task in ready)
+            *(
+                _run_one(task, tools=tools, store=store, events=events, semaphore=semaphore)
+                for task in ready
+            )
         )
 
     run.status = RunStatus.COMPLETED if not graph.has_failures() else RunStatus.PARTIAL
     await store.update_run(run.run_id, status=run.status.value)
+    await events.emit(Event(
+        run_id=run.run_id, event_type=EventType.RUN_COMPLETED,
+        payload={"status": run.status.value},
+    ))
     return run
 
 
 async def _run_one(
-    task: Task, *, tools: MCPClientManager, store: StateStore, semaphore: asyncio.Semaphore
+    task: Task, *, tools: MCPClientManager, store: StateStore,
+    events: EventBus, semaphore: asyncio.Semaphore,
 ) -> None:
     """Run a task's agent, retrying on classified, retryable failures up to
     `task.max_attempts` times. Never raises -- a failure that survives every
     retry becomes a FAILED task status, not a crashed runner."""
+    observed_tools = ObservedTools(tools, events, task)
+
     async with semaphore:
         task.status = TaskStatus.RUNNING
         task.started_at = utcnow()
         await store.save_task(task)
+        await events.emit(Event(
+            run_id=task.run_id, task_id=task.task_id,
+            agent_id=task.assigned_agent.value, event_type=EventType.TASK_STARTED,
+            payload={"description": task.description},
+        ))
 
         while True:
             attempt = Attempt(number=task.attempt_count + 1)
 
             try:
-                result = await dispatch(task, tools=tools, store=store)
+                result = await dispatch(task, tools=observed_tools, store=store)
             except Exception as exc:
                 attempt.ok = False
                 attempt.failure_kind = classify_failure(exc)
@@ -142,6 +168,15 @@ async def _run_one(
                 attempt.finished_at = utcnow()
                 task.attempts.append(attempt)
                 await store.save_task(task)
+                await events.emit(Event(
+                    run_id=task.run_id, task_id=task.task_id,
+                    agent_id=task.assigned_agent.value,
+                    event_type=EventType.TASK_RETRYING if will_retry else EventType.TASK_FAILED,
+                    payload={
+                        "attempt": attempt.number, "failureKind": attempt.failure_kind.value,
+                        "error": attempt.error, "note": attempt.note,
+                    },
+                ))
                 if will_retry:
                     continue
                 break
@@ -152,7 +187,19 @@ async def _run_one(
                 task.status = TaskStatus.DONE
                 task.result = result
                 await store.save_task(task)
+                await events.emit(Event(
+                    run_id=task.run_id, task_id=task.task_id,
+                    agent_id=task.assigned_agent.value, event_type=EventType.TASK_COMPLETED,
+                    payload={"attempt": attempt.number, "result": _preview(result)},
+                ))
                 break
 
         task.finished_at = utcnow()
         await store.save_task(task)
+
+
+def _preview(result: object, limit: int = 500) -> object:
+    """Trim a task result for the event payload -- the full result already
+    lives on the task/store; the event feed only needs enough to display."""
+    text = str(result)
+    return text if len(text) <= limit else text[: limit - 1] + "…"

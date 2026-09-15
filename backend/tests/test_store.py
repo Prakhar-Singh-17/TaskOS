@@ -57,6 +57,12 @@ async def test_update_run_patches_only_given_fields(store):
     assert loaded.final_output == "done"
     assert loaded.goal == run.goal  # untouched
 
+    # Regression check: update_run's setattr(run, "status", "completed") must
+    # coerce back into the RunStatus enum, not leave a raw string on the
+    # model -- a raw string has no .value and crashed the API's GET /runs/{id}
+    # during live testing (see model_config = ConfigDict(validate_assignment=True)).
+    assert loaded.status.value == "completed"
+
 
 async def test_list_runs_orders_most_recent_first(store):
     older, newer = make_run(), make_run()

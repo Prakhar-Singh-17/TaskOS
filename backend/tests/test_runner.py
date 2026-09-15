@@ -12,6 +12,7 @@ import time
 import pytest
 
 from taskos.core import runner
+from taskos.core.events import EventBus
 from taskos.core.models import AgentType, Run, RunStatus, Task, TaskStatus
 from taskos.store.memory import MemoryStore
 
@@ -78,7 +79,7 @@ async def test_independent_tasks_run_concurrently_not_sequentially(monkeypatch, 
     run = fan_in_run()
 
     started = time.monotonic()
-    result = await runner.run_graph(run, tools=None, store=store)
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
     elapsed = time.monotonic() - started
 
     # 4 tasks at TASK_DELAY each would take ~4x as long if fully serialized;
@@ -95,7 +96,7 @@ async def test_synthesis_does_not_start_until_all_research_tasks_finish(monkeypa
     monkeypatch.setattr(runner, "dispatch", fake)
     run = fan_in_run()
 
-    await runner.run_graph(run, tools=None, store=store)
+    await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     research_finish_times = [fake.spans[tid][1] for tid in ("r1", "r2", "r3")]
     synth_start_time = fake.spans["synth"][0]
@@ -108,7 +109,7 @@ async def test_concurrency_is_bounded_by_max_parallel_tasks(monkeypatch, store):
     monkeypatch.setattr(runner, "dispatch", fake)
     run = fan_in_run()
 
-    await runner.run_graph(run, tools=None, store=store, max_parallel_tasks=1)
+    await runner.run_graph(run, tools=None, store=store, events=EventBus(store), max_parallel_tasks=1)
 
     assert not overlaps(fake.spans["r1"], fake.spans["r2"])
     assert not overlaps(fake.spans["r2"], fake.spans["r3"])
@@ -121,7 +122,7 @@ async def test_all_tasks_end_up_done_and_persisted(monkeypatch, store):
     monkeypatch.setattr(runner, "dispatch", Instrumented())
     run = fan_in_run()
 
-    result = await runner.run_graph(run, tools=None, store=store)
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     assert all(t.status is TaskStatus.DONE for t in result.tasks)
     assert all(t.result == f"result for {t.task_id}" for t in result.tasks)
@@ -141,7 +142,7 @@ async def test_failed_task_blocks_its_dependents_without_running_them(monkeypatc
     monkeypatch.setattr(runner, "dispatch", fake)
     run = fan_in_run()
 
-    result = await runner.run_graph(run, tools=None, store=store)
+    result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     by_id = {t.task_id: t for t in result.tasks}
     assert by_id["r1"].status is TaskStatus.FAILED
@@ -159,6 +160,6 @@ async def test_independent_branches_are_unaffected_by_a_sibling_failure(monkeypa
     monkeypatch.setattr(runner, "dispatch", fake)
     run = fan_in_run()
 
-    await runner.run_graph(run, tools=None, store=store)
+    await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
     assert overlaps(fake.spans["r1"], fake.spans["r2"])  # still ran concurrently

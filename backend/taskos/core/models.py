@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def utcnow() -> datetime:
@@ -106,6 +106,14 @@ class Attempt(BaseModel):
 
 
 class Task(BaseModel):
+    # Both Task and Run get mutated via plain attribute assignment throughout
+    # the runner/store (e.g. `task.status = TaskStatus.RUNNING`, or a store's
+    # generic `setattr(run, field, value)` for a partial update). Without
+    # validate_assignment, Pydantic only validates at construction time --
+    # assigning a raw string to an enum field would silently store the wrong
+    # type instead of coercing or rejecting it.
+    model_config = ConfigDict(validate_assignment=True)
+
     task_id: str = Field(default_factory=lambda: new_id("task"))
     run_id: str
     description: str
@@ -144,6 +152,8 @@ class Task(BaseModel):
 
 
 class Run(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)  # see Task's comment above
+
     run_id: str = Field(default_factory=lambda: new_id("run"))
     goal: str
     status: RunStatus = RunStatus.PLANNING
