@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 const STATUS_TONE = {
   planning: 'border-ink-3/30 bg-ink-3/10 text-ink-2',
   running: 'border-blue-500/30 bg-blue-500/12 text-blue-600 dark:text-blue-300',
@@ -31,6 +33,18 @@ export default function RunSummary({ run }) {
   const done = tasks.filter((t) => t.status === 'done').length
   const retries = tasks.reduce((n, t) => n + Math.max(0, t.attempts.length - 1), 0)
   const running = run.status === 'running' || run.status === 'planning'
+
+  // elapsed() is derived from real timestamps (createdAt/finishedAt), so the
+  // value itself is always accurate -- but this component only re-renders on
+  // prop changes (a websocket event), which can be many seconds apart. Force
+  // a re-render every second while the run is live so the clock visibly
+  // ticks; once finished, finishedAt freezes the value and this stops.
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [running])
 
   return (
     <div className="flex flex-col gap-4">
