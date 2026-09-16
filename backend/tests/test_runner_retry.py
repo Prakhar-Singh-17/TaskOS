@@ -140,6 +140,42 @@ async def test_survives_prepare_retry_itself_failing(monkeypatch, store):
     assert fake_dispatch.calls_with_query[1] == fake_dispatch.calls_with_query[0]
 
 
+async def test_retry_backoff_doubles_each_attempt(monkeypatch, store):
+    """A retryable failure sleeps before the next attempt, backing off
+    exponentially (base, 2x, 4x...) -- instant retries just resend into the
+    same rate-limit window a flaky third-party tool (Pollinations, Tavily)
+    is already enforcing."""
+    import dataclasses
+
+    from taskos.core import runner as runner_module
+
+    fake_dispatch = FlakyThenSucceeds(fail_times=99)
+    monkeypatch.setattr(runner, "dispatch", fake_dispatch)
+    # Settings is a frozen dataclass -- swap the module's reference to a
+    # modified copy rather than mutating the (immutable) singleton in place.
+    monkeypatch.setattr(
+        runner_module, "settings", dataclasses.replace(runner_module.settings, retry_backoff_seconds=3.0)
+    )
+
+    async def fake_reword_query(original: str) -> str:
+        return original  # keep this test isolated from any real LLM call
+
+    from taskos.agents import research
+    monkeypatch.setattr(research, "reword_query", fake_reword_query)
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(runner_module.asyncio, "sleep", fake_sleep)
+
+    run = make_run(max_attempts=3)
+    await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
+
+    assert sleeps == [3.0, 6.0]  # one sleep between each of the 3 attempts
+
+
 async def test_attempt_history_is_persisted_to_the_store(monkeypatch, store):
     fake_dispatch = FlakyThenSucceeds(fail_times=1)
     monkeypatch.setattr(runner, "dispatch", fake_dispatch)

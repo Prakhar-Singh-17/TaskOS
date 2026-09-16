@@ -28,6 +28,8 @@ services:
         value: taskos
       - key: MAX_TASK_RETRIES
         value: "3"
+      - key: RETRY_BACKOFF_SECONDS
+        value: "2"
       - key: MAX_PARALLEL_TASKS
         value: "4"
       - key: ALLOWED_ORIGINS

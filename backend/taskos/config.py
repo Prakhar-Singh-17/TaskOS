@@ -20,6 +20,14 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name, "")
+    try:
+        return float(raw) if raw.strip() else default
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class Settings:
     # LLM
@@ -49,6 +57,13 @@ class Settings:
     max_task_retries: int = field(default_factory=lambda: _int_env("MAX_TASK_RETRIES", 3))
     max_parallel_tasks: int = field(
         default_factory=lambda: _int_env("MAX_PARALLEL_TASKS", 4)
+    )
+    # Base delay before a retried attempt, doubled per attempt (1x, 2x, 4x...).
+    # Third-party tools (Pollinations, Tavily) rate-limit or briefly 500 under
+    # load -- retrying instantly just resends into the same limit window, so
+    # tests force this to 0 for speed/determinism (see tests/conftest.py).
+    retry_backoff_seconds: float = field(
+        default_factory=lambda: _float_env("RETRY_BACKOFF_SECONDS", 2.0)
     )
     api_host: str = field(default_factory=lambda: os.getenv("API_HOST", "127.0.0.1"))
     api_port: int = field(default_factory=lambda: _int_env("API_PORT", 8000))

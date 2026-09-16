@@ -205,6 +205,9 @@ async def _run_one(
                     },
                 ))
                 if will_retry:
+                    backoff = settings.retry_backoff_seconds * (2 ** (attempt.number - 1))
+                    if backoff > 0:
+                        await asyncio.sleep(backoff)
                     continue
                 break
             else:
