@@ -9,8 +9,15 @@ import EventLog from './components/EventLog'
 import FinalResult from './components/FinalResult'
 import EmptyState from './components/EmptyState'
 import ThemeToggle from './components/ThemeToggle'
+import Splash from './components/Splash'
 
 const TERMINAL_STATUSES = new Set(['completed', 'partial', 'failed'])
+const BOOT_MIN_MS = 850
+const BOOT_EXIT_MS = 500
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
 
 export default function App() {
   const [runs, setRuns] = useState([])
@@ -19,10 +26,25 @@ export default function App() {
   const [events, setEvents] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [connected, setConnected] = useState(socket.connected)
+  // 'boot' -> 'leaving' -> 'done'. Skipped straight to 'done' for anyone who
+  // prefers reduced motion -- the splash is decoration, not a loading gate.
+  const [bootPhase, setBootPhase] = useState(prefersReducedMotion() ? 'done' : 'boot')
+
+  // Fetch run history once on mount; hold the splash up for at least
+  // BOOT_MIN_MS so it never just flickers, but never longer than the real
+  // fetch takes plus that minimum -- it's masking real latency, not adding to it.
+  useEffect(() => {
+    const dataReady = listRuns().then(setRuns).catch(console.error)
+    if (prefersReducedMotion()) return // no splash was shown, nothing to dismiss
+    const minDelay = new Promise((resolve) => setTimeout(resolve, BOOT_MIN_MS))
+    Promise.all([dataReady, minDelay]).then(() => setBootPhase('leaving'))
+  }, [])
 
   useEffect(() => {
-    listRuns().then(setRuns).catch(console.error)
-  }, [])
+    if (bootPhase !== 'leaving') return
+    const timer = setTimeout(() => setBootPhase('done'), BOOT_EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [bootPhase])
 
   // Backfill detail + event log whenever the selected run changes -- this is
   // what makes clicking an old run in history work, not just live ones.
@@ -76,8 +98,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg">
+      {bootPhase !== 'done' && <Splash leaving={bootPhase === 'leaving'} />}
+
       <div className="mx-auto max-w-[1440px] p-5 lg:p-10">
-        <div className="overflow-hidden rounded-[18px] border border-line bg-bg shadow-[0_24px_70px_-30px_rgb(0_0_0/0.35)]">
+        <div className="animate-fade-up overflow-hidden rounded-[18px] border border-line bg-bg shadow-[0_24px_70px_-30px_rgb(0_0_0/0.35)]">
 
           {/* ---------- header ---------- */}
           <header className="relative flex items-center justify-between gap-3 overflow-hidden border-b border-line px-6 py-4.5">
