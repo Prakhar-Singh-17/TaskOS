@@ -16,7 +16,10 @@ services:
       - key: GEMINI_API_KEY
         sync: false # set manually in the Render dashboard
       - key: GEMINI_MODEL
-        value: gemini-3.5-flash
+        # flash-lite has a much less restrictive free-tier quota than flash
+        # (see memory/notes: flash hit both its 20/day and 5/minute caps
+        # repeatedly during testing; flash-lite never did). Change anytime.
+        value: gemini-3.5-flash-lite
       - key: TAVILY_API_KEY
         sync: false
       - key: MONGODB_URI
