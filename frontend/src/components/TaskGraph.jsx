@@ -10,11 +10,14 @@ const NODE_H = 92
 // Dependency edges are real SVG beziers between the parent's right edge and the
 // child's left edge, so "3 boxes in a column" is a true statement about
 // parallelism and every arrow is a real dependency.
-export default function TaskGraph({ layers, tasks }) {
+export default function TaskGraph({ layers, tasks, status }) {
   if (!layers || layers.length === 0) {
+    // A run can end with zero tasks (e.g. the Supervisor refused an
+    // out-of-scope goal) -- that's a terminal state, not still-planning.
+    const stillPlanning = status === 'planning' || status === undefined
     return (
       <p className="px-6 py-10 text-center text-[13px] text-ink-3">
-        Waiting for the Supervisor to produce a plan…
+        {stillPlanning ? 'Waiting for the Supervisor to produce a plan…' : 'No tasks were planned for this run.'}
       </p>
     )
   }

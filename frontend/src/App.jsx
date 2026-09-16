@@ -164,7 +164,7 @@ export default function App() {
                       </span>
                     </div>
                     <div className="relative">
-                      <TaskGraph layers={currentRun.layers || []} tasks={currentRun.tasks || []} />
+                      <TaskGraph layers={currentRun.layers || []} tasks={currentRun.tasks || []} status={currentRun.status} />
                     </div>
                   </section>
 

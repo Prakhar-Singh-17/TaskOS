@@ -10,6 +10,7 @@ import pytest
 
 from taskos.core import orchestrator
 from taskos.agents.llm import LLMError, LLMMalformedOutputError
+from taskos.agents.supervisor import OutOfScopeError
 from taskos.core.events import EventBus
 from taskos.core.models import AgentType, EventType, Run, RunStatus, Task
 from taskos.store.memory import MemoryStore
@@ -115,6 +116,29 @@ async def test_a_non_malformed_llm_error_also_ends_the_run_failed(monkeypatch, s
 
     assert result.status is RunStatus.FAILED
     assert "RESOURCE_EXHAUSTED" in result.error
+    emitted = [e.event_type for e in await store.get_events(result.run_id)]
+    assert emitted == [EventType.RUN_CREATED, EventType.RUN_COMPLETED]
+
+
+async def test_an_out_of_scope_goal_ends_the_run_failed_with_a_clean_message(monkeypatch, store):
+    """A goal like 'open my computer' isn't a bug -- the Supervisor correctly
+    refuses it. The run still ends FAILED (no separate status exists for
+    this), but the message has no exception-class prefix, since it's meant
+    to be read as-is by the user, not debugged."""
+
+    async def refusing_plan(goal: str) -> Run:
+        raise OutOfScopeError("TaskOS is currently only able to research topics and generate images.")
+
+    monkeypatch.setattr(orchestrator.supervisor, "plan", refusing_plan)
+
+    events = EventBus(store)
+    result = await orchestrator.execute_goal("open my computer", tools=None, store=store, events=events)
+
+    assert result.status is RunStatus.FAILED
+    assert result.error == "TaskOS is currently only able to research topics and generate images."
+    assert result.tasks == []
+    assert result.finished_at is not None
+
     emitted = [e.event_type for e in await store.get_events(result.run_id)]
     assert emitted == [EventType.RUN_CREATED, EventType.RUN_COMPLETED]
 

@@ -10,6 +10,7 @@ import pytest
 
 from taskos.agents import supervisor
 from taskos.agents.llm import LLMMalformedOutputError
+from taskos.agents.supervisor import OutOfScopeError
 from taskos.core.models import AgentType, TaskStatus
 
 
@@ -69,6 +70,19 @@ async def test_plan_can_include_an_illustrator_task(monkeypatch):
 
     assert len(run.tasks) == 1
     assert run.tasks[0].assigned_agent is AgentType.ILLUSTRATOR
+
+
+# -- goals no agent can do are refused, not force-fit into a plan -------
+
+
+async def test_out_of_scope_goal_raises_instead_of_planning(monkeypatch):
+    """The Supervisor's contract for an unachievable goal (e.g. 'open my
+    computer') is a fixed {"unsupported": true} object, not a task array --
+    this must surface as a distinct, non-retryable error, not get rejected
+    as merely malformed."""
+    _mock_plan(monkeypatch, {"unsupported": True})
+    with pytest.raises(OutOfScopeError, match="research topics and generate images"):
+        await supervisor.plan("open my computer")
 
 
 # -- malformed output is rejected, not silently accepted ----------------

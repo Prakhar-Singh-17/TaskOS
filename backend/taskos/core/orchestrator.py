@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 from taskos.agents import supervisor
+from taskos.agents.supervisor import OutOfScopeError
 from taskos.core.events import EventBus
 from taskos.core.graph import TaskGraph
 from taskos.core.models import Event, EventType, Run, RunStatus, utcnow
@@ -73,6 +74,23 @@ async def execute_goal(
         ))
 
         return await run_graph(run, tools=tools, store=store, events=events)
+
+    except OutOfScopeError as exc:
+        # Not a bug -- the Supervisor correctly recognized a goal none of our
+        # agents can do. No traceback, and no exception-class prefix on the
+        # message: it's meant to be read as-is by the user in FinalResult.
+        logger.info("Run %s rejected as out of scope: %s", run.run_id, exc)
+        run.status = RunStatus.FAILED
+        run.error = str(exc)
+        run.finished_at = utcnow()
+        await store.update_run(
+            run.run_id, status=run.status.value, error=run.error, finished_at=run.finished_at
+        )
+        await events.emit(Event(
+            run_id=run.run_id, event_type=EventType.RUN_COMPLETED,
+            payload={"status": run.status.value, "error": run.error},
+        ))
+        return run
 
     except Exception as exc:
         # Covers a malformed/invalid plan, an LLM error (timeout, quota,

@@ -17,6 +17,12 @@ from taskos.core.models import AgentType, Run, Task
 _ASSIGNABLE_AGENTS = [a for a in AgentType if a is not AgentType.SUPERVISOR]
 _AGENT_NAMES = ", ".join(a.value for a in _ASSIGNABLE_AGENTS)
 
+
+class OutOfScopeError(Exception):
+    """Raised when the goal can't be accomplished by any available agent
+    (e.g. it asks TaskOS to take a real-world action like controlling the
+    user's computer, rather than research/write/illustrate something)."""
+
 SYSTEM_INSTRUCTION = f"""You are the Supervisor of TaskOS, an agentic system that
 breaks a goal into a task DAG (directed acyclic graph) for other agents to execute.
 
@@ -39,10 +45,21 @@ Rules:
   independent subjects (e.g. multiple companies). Otherwise use one research task.
 - An illustrator task's description is the image prompt itself -- describe the
   desired picture directly (subject, style, composition), not "generate an image of...".
-- Output ONLY a JSON array, no prose, no markdown fences. Each element:
+- If the goal cannot be accomplished by any of the available agents -- e.g. it asks
+  you to control the user's device, open/run/install/delete something on their
+  computer, send a message or email, browse or act on an account, or take any other
+  real-world action instead of researching, writing, or illustrating -- do not
+  output a task array. Output exactly this JSON object instead, with no other keys:
+  {{"unsupported": true}}
+- Otherwise, output ONLY a JSON array, no prose, no markdown fences. Each element:
   {{"id": "<local label>", "description": "<specific, actionable task description>",
     "agent": "<one of: {_AGENT_NAMES}>", "depends_on": ["<local label>", ...]}}
 """
+
+_OUT_OF_SCOPE_MESSAGE = (
+    "TaskOS is currently only able to research topics and generate images -- "
+    "it can't take real-world actions like this yet."
+)
 
 
 def _build_prompt(goal: str) -> str:
@@ -52,10 +69,14 @@ def _build_prompt(goal: str) -> str:
 async def plan(goal: str) -> Run:
     """Ask Gemini to plan a goal, then return a Run with a validated task DAG.
 
+    Raises OutOfScopeError if the goal isn't something any available agent can
+    do (not retryable -- the goal itself needs to change, not the plan).
     Raises LLMMalformedOutputError if the model's output can't be turned into
     a runnable DAG -- callers treat this as a retryable planning failure.
     """
     raw = await generate_json(_build_prompt(goal), system_instruction=SYSTEM_INSTRUCTION)
+    if isinstance(raw, dict) and raw.get("unsupported"):
+        raise OutOfScopeError(_OUT_OF_SCOPE_MESSAGE)
     if not isinstance(raw, list) or not raw:
         raise LLMMalformedOutputError("Expected a non-empty JSON array of tasks")
 
