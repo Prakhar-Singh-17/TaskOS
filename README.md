@@ -26,7 +26,7 @@ Goal ──▶ Supervisor (Gemini) ──▶ task DAG ──▶ Task Runner
 - **Backend** (`backend/`): FastAPI + Socket.io. Python, custom DAG runner
   (no LangGraph -- the Supervisor generates the DAG at runtime, which doesn't
   fit a compile-time graph framework).
-- **Frontend** (`frontend/`): React (Vite), plain CSS, `socket.io-client`.
+- **Frontend** (`frontend/`): React (Vite), Tailwind CSS v4, `socket.io-client`, `react-markdown`.
 - **LLM**: Gemini, via the `google-genai` SDK.
 - **Tools**: MCP (Model Context Protocol) servers, spoken over stdio. One
   tool today (`search`, backed by Tavily with an offline mock mode); adding

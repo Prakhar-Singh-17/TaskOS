@@ -1,16 +1,21 @@
-# React + Vite
+# TaskOS frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite + Tailwind CSS v4. See the [repo root README](../README.md) for
+how to run the full stack (backend + frontend) and environment variables.
 
-Currently, two official plugins are available:
+## Notes on this UI
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Tailwind v4, CSS-first config** — no `tailwind.config.js`; all theme
+  tokens (colors, fonts, animation keyframes) live in `src/index.css` as
+  plain CSS custom properties, exposed to Tailwind via `@theme inline`.
+- **Dark/light theme** — toggled via a `.dark` class on `<html>`, persisted
+  to `localStorage` (`taskos-theme`). `index.html` sets the class before
+  first paint to avoid a flash.
+- **Real node graph** (`TaskGraph.jsx`) — tasks are absolutely positioned per
+  DAG layer (computed by the backend, not re-derived here) with actual SVG
+  bezier edges between dependencies, not a static box layout.
+- Motion respects `prefers-reduced-motion`.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Component props and the `api.js`/`socket.js` contract are unchanged from the
+backend's REST/Socket.io shape (see `backend/taskos/api/app.py`) — nothing
+here assumes a different response format.
