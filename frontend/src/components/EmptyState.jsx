@@ -12,7 +12,11 @@ export default function EmptyState({ onPick }) {
           aria-hidden="true"
           className="animate-drift absolute inset-0 rounded-full bg-[radial-gradient(closest-side,var(--halo),transparent)]"
         />
-        <span className="animate-dot-pulse relative block size-3.5 rotate-45 rounded-[3px] bg-acc" />
+        <img
+          src="/logo.png"
+          alt=""
+          className="animate-dot-pulse relative size-9 object-contain"
+        />
       </div>
 
       <h3 className="m-0 font-serif text-3xl font-normal text-ink">

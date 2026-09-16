@@ -12,11 +12,13 @@ export default function Splash({ leaving }) {
       }`}
     >
       <div className="flex flex-col items-center gap-5">
-        <div className="relative grid size-16 place-items-center">
+        <div className="relative grid size-20 place-items-center">
           <span className="animate-drift absolute inset-0 rounded-full bg-[radial-gradient(closest-side,var(--halo),transparent)]" />
-          <span className="animate-splash-pop relative grid size-12 place-items-center rounded-2xl bg-acc shadow-[0_0_30px_-4px_var(--acc)]">
-            <span className="block size-3.5 rotate-45 rounded-[3px] bg-bg" />
-          </span>
+          <img
+            src="/logo.png"
+            alt="TaskOS"
+            className="animate-splash-pop relative size-14 object-contain drop-shadow-[0_0_26px_-3px_var(--acc)]"
+          />
         </div>
 
         <div className="animate-fade-up flex flex-col items-center gap-2.5" style={{ animationDelay: '220ms' }}>

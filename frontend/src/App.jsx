@@ -110,9 +110,11 @@ export default function App() {
               className="animate-drift pointer-events-none absolute -top-[60%] right-[-20%] left-[30%] h-56 bg-[radial-gradient(closest-side,var(--halo),transparent)] blur-lg"
             />
             <div className="relative flex items-center gap-3.5">
-              <span className="grid size-7.5 place-items-center rounded-[9px] bg-acc shadow-[0_0_22px_-4px_var(--acc)]">
-                <span className="block size-2.25 rotate-45 rounded-[2px] bg-bg" />
-              </span>
+              <img
+                src="/logo.png"
+                alt="TaskOS"
+                className="size-8 object-contain drop-shadow-[0_0_16px_-3px_var(--acc)]"
+              />
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-semibold tracking-[0.08em] uppercase text-ink">TaskOS</span>
                 <span className="text-[11px] text-ink-3">Agentic task orchestration</span>
