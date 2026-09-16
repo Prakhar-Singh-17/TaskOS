@@ -47,16 +47,16 @@ class Settings:
     api_port: int = field(default_factory=lambda: _int_env("API_PORT", 8000))
 
     # Comma-separated list of origins allowed to call the API/websocket, e.g.
-    # "https://taskos-frontend.onrender.com". Defaults to "*" (open) for local
-    # dev; set explicitly in production once the frontend's real URL is known.
+    # "https://taskos-frontend.onrender.com". No wildcard fallback on purpose:
+    # if this is unset, allowed_origins is an empty list and nothing can call
+    # the API cross-origin -- fails closed, not open. Set it explicitly, both
+    # locally (e.g. http://localhost:5173) and in production.
     allowed_origins_raw: str = field(
-        default_factory=lambda: os.getenv("ALLOWED_ORIGINS", "*")
+        default_factory=lambda: os.getenv("ALLOWED_ORIGINS", "")
     )
 
     @property
     def allowed_origins(self) -> list[str]:
-        if self.allowed_origins_raw.strip() == "*":
-            return ["*"]
         return [o.strip() for o in self.allowed_origins_raw.split(",") if o.strip()]
 
     @property

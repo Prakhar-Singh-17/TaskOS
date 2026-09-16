@@ -5,9 +5,9 @@ Socket.io broadcasts every event on the EventBus to connected dashboard
 clients as it happens. The two share one ASGI app (`asgi_app`, served by
 uvicorn) so they run on the same port.
 
-CORS and Socket.io allow origins from settings.allowed_origins (default `*`
-for local dev; set ALLOWED_ORIGINS to the deployed frontend's URL in
-production, see .env.example).
+CORS and Socket.io allow only origins listed in ALLOWED_ORIGINS -- there is
+no wildcard fallback, so this must be set (locally and in production) or
+nothing can reach the API cross-origin. See .env.example.
 
 Run with:  uvicorn taskos.api.app:asgi_app --reload --port 8000
 """

@@ -31,7 +31,7 @@ services:
       - key: MAX_PARALLEL_TASKS
         value: "4"
       - key: ALLOWED_ORIGINS
-        value: "*" # tighten to the frontend's URL below once it's known
+        sync: false # required, no wildcard fallback -- set to the frontend's exact URL
 
   - type: web
     name: taskos-frontend
