@@ -27,12 +27,18 @@ Available agent types: {_AGENT_NAMES}
 - "synthesis": merges findings from multiple research tasks. depends_on must list
   every research task it merges.
 - "writer": drafts final written output from research or synthesis findings.
+- "illustrator": generates one image from a text description. Use it ONLY when
+  the goal explicitly asks for a picture, illustration, logo, diagram, or visual
+  -- never for a goal that just happens to be about a visual subject (e.g.
+  researching a painter does not need an illustrator task).
 
 Rules:
 - Give every task a short local label for "id" (e.g. "r1", "r2", "synth", "write").
   "depends_on" must reference these local labels, not real ids.
 - Only create parallel research tasks when the goal genuinely names multiple
   independent subjects (e.g. multiple companies). Otherwise use one research task.
+- An illustrator task's description is the image prompt itself -- describe the
+  desired picture directly (subject, style, composition), not "generate an image of...".
 - Output ONLY a JSON array, no prose, no markdown fences. Each element:
   {{"id": "<local label>", "description": "<specific, actionable task description>",
     "agent": "<one of: {_AGENT_NAMES}>", "depends_on": ["<local label>", ...]}}

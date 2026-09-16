@@ -59,9 +59,30 @@ class ToolResult:
             "params": self.params,
             "ok": self.ok,
             "durationMs": self.duration_ms,
-            "result": self.content if self.ok else None,
+            "result": _truncate_large_strings(self.content) if self.ok else None,
             "error": self.error,
         }
+
+
+_EVENT_STRING_LIMIT = 500
+
+
+def _truncate_large_strings(value: Any, limit: int = _EVENT_STRING_LIMIT) -> Any:
+    """Trim any long string inside a tool result before it goes out on the
+    live event feed -- generic over tool shape, not just image data: a large
+    base64 blob (generate_image) or an unusually long text field from a
+    future tool both get capped the same way. The *persisted* result (what
+    the task actually returns/stores) is untouched; only the broadcast copy
+    shrinks, since every connected dashboard receives every event."""
+    if isinstance(value, str):
+        if len(value) <= limit:
+            return value
+        return f"<{len(value)} chars, omitted from live event>"
+    if isinstance(value, dict):
+        return {k: _truncate_large_strings(v, limit) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_truncate_large_strings(v, limit) for v in value]
+    return value
 
 
 class MCPClientManager:

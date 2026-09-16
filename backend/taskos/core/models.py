@@ -55,6 +55,7 @@ class AgentType(str, Enum):
     RESEARCH = "research"
     WRITER = "writer"
     SYNTHESIS = "synthesis"
+    ILLUSTRATOR = "illustrator"
 
 
 class FailureKind(str, Enum):

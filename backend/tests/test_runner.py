@@ -127,7 +127,7 @@ async def test_final_output_is_the_terminal_task_result(monkeypatch, store):
 
     result = await runner.run_graph(run, tools=None, store=store, events=EventBus(store))
 
-    assert result.final_output == {"text": "result for synth", "sources": []}
+    assert result.final_output == {"text": "result for synth", "sources": [], "image": None}
 
 
 async def test_final_output_normalizes_a_dict_result_with_summary_and_sources(monkeypatch, store):
@@ -145,6 +145,7 @@ async def test_final_output_normalizes_a_dict_result_with_summary_and_sources(mo
     assert result.final_output == {
         "text": "the merged findings",
         "sources": [{"title": "a", "url": "b"}],
+        "image": None,
     }
 
 

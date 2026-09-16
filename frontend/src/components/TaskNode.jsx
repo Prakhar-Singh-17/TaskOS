@@ -108,10 +108,21 @@ export default function TaskNode({ task, taskById, x, y, delay = 0 }) {
             <p className="m-0 mb-2 text-[11.5px] text-red-600 dark:text-red-400">{task.error}</p>
           )}
 
-          {task.result != null && (
-            <pre className="m-0 max-h-48 overflow-y-auto rounded-lg border border-line bg-panel p-2.5 font-mono text-[10.5px] break-words whitespace-pre-wrap text-ink-2">
-              {typeof task.result === 'string' ? task.result : JSON.stringify(task.result, null, 2)}
-            </pre>
+          {task.result?.image?.base64 ? (
+            // An image result (Illustrator) renders as a picture, not a
+            // base64 wall of text -- the one place a new result *shape*
+            // needs its own branch, same as FinalResult.jsx.
+            <img
+              src={`data:${task.result.image.mimeType};base64,${task.result.image.base64}`}
+              alt=""
+              className="max-h-40 w-full rounded-lg border border-line object-cover"
+            />
+          ) : (
+            task.result != null && (
+              <pre className="m-0 max-h-48 overflow-y-auto rounded-lg border border-line bg-panel p-2.5 font-mono text-[10.5px] break-words whitespace-pre-wrap text-ink-2">
+                {typeof task.result === 'string' ? task.result : JSON.stringify(task.result, null, 2)}
+              </pre>
+            )
           )}
         </div>
       )}

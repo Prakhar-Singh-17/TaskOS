@@ -49,6 +49,14 @@ export default function FinalResult({ run }) {
         </button>
       </div>
 
+      {output.image?.base64 && (
+        <img
+          src={`data:${output.image.mimeType};base64,${output.image.base64}`}
+          alt=""
+          className="mb-4 max-w-full rounded-xl border border-line"
+        />
+      )}
+
       <div
         className="max-w-[72ch] text-[14.5px] leading-[1.7] text-ink-2
           [&_code]:rounded [&_code]:bg-bg [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.88em]

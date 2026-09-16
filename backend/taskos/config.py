@@ -33,6 +33,13 @@ class Settings:
     search_mode: str = field(
         default_factory=lambda: os.getenv("TASKOS_SEARCH_MODE", "live").lower()
     )
+    # Pollinations.ai is free and needs no API key, so live can be the default
+    # (unlike search_mode, which defaults live but still needs TAVILY_API_KEY
+    # to actually call out). Tests still force this to "mock" -- see
+    # tests/conftest.py -- so the suite never depends on a live network call.
+    image_mode: str = field(
+        default_factory=lambda: os.getenv("TASKOS_IMAGE_MODE", "live").lower()
+    )
 
     # State store
     mongodb_uri: str = field(default_factory=lambda: os.getenv("MONGODB_URI", ""))

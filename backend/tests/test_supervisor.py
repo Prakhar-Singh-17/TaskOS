@@ -56,6 +56,21 @@ async def test_parallel_fan_in_plan(monkeypatch):
     assert set(synth.depends_on) == research_ids  # fan-in resolved correctly
 
 
+async def test_plan_can_include_an_illustrator_task(monkeypatch):
+    """The Supervisor accepts "illustrator" as a valid agent -- proves adding
+    a new AgentType required no change to the plan-parsing logic itself,
+    only the enum and the system prompt."""
+    _mock_plan(monkeypatch, [
+        {"id": "img", "description": "A red panda astronaut, flat vector style",
+         "agent": "illustrator", "depends_on": []},
+    ])
+
+    run = await supervisor.plan("Make a picture of a red panda astronaut")
+
+    assert len(run.tasks) == 1
+    assert run.tasks[0].assigned_agent is AgentType.ILLUSTRATOR
+
+
 # -- malformed output is rejected, not silently accepted ----------------
 
 

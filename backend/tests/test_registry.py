@@ -3,7 +3,7 @@
 import pytest
 
 from taskos.agents.registry import AGENT_REGISTRY, dispatch
-from taskos.agents import research, synthesis, writer
+from taskos.agents import illustrator, research, synthesis, writer
 from taskos.core.models import AgentType, Task
 
 RUN_ID = "run_test"
@@ -13,6 +13,7 @@ def test_registry_maps_every_assignable_agent_type():
     assert AGENT_REGISTRY[AgentType.RESEARCH] is research.run
     assert AGENT_REGISTRY[AgentType.WRITER] is writer.run
     assert AGENT_REGISTRY[AgentType.SYNTHESIS] is synthesis.run
+    assert AGENT_REGISTRY[AgentType.ILLUSTRATOR] is illustrator.run
     assert AgentType.SUPERVISOR not in AGENT_REGISTRY  # the supervisor plans, it isn't dispatched to
 
 

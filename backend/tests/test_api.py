@@ -31,11 +31,11 @@ def client(monkeypatch):
         yield c
 
 
-def test_list_tools_returns_the_search_tool(client):
+def test_list_tools_returns_every_registered_tool(client):
     response = client.get("/api/tools")
     assert response.status_code == 200
-    names = [t["name"] for t in response.json()]
-    assert names == ["search"]
+    names = {t["name"] for t in response.json()}
+    assert names == {"search", "generate_image"}
 
 
 def test_get_unknown_run_is_404(client):

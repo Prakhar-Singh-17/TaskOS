@@ -6,7 +6,7 @@ stdio, so they prove discovery and invocation, not just local function calls.
 
 import pytest
 
-from taskos.mcp_client.client import MCPClientManager
+from taskos.mcp_client.client import MCPClientManager, ToolResult
 
 
 @pytest.fixture
@@ -15,11 +15,13 @@ async def tools():
         yield manager
 
 
-async def test_discovers_search_tool_from_server(tools):
-    specs = tools.list_tools()
-    assert [s.name for s in specs] == ["search"]
-    assert specs[0].server == "search"
-    assert "query" in specs[0].input_schema.get("properties", {})
+async def test_discovers_tools_from_every_registered_server(tools):
+    specs = {s.name: s for s in tools.list_tools()}
+    assert set(specs) == {"search", "generate_image"}
+    assert specs["search"].server == "search"
+    assert "query" in specs["search"].input_schema.get("properties", {})
+    assert specs["generate_image"].server == "image"
+    assert "prompt" in specs["generate_image"].input_schema.get("properties", {})
 
 
 async def test_tool_catalogue_shape_for_llm(tools):
@@ -55,3 +57,34 @@ async def test_tool_result_serializes_for_the_event_log(tools):
     assert payload["tool"] == "search"
     assert payload["ok"] is True
     assert payload["error"] is None
+
+
+def test_truncate_large_strings_shrinks_long_values_only():
+    from taskos.mcp_client.client import _truncate_large_strings
+
+    small = {"title": "fine", "nested": {"also_fine": "x" * 10}}
+    assert _truncate_large_strings(small) == small
+
+    large = {"imageBase64": "x" * 1000, "mimeType": "image/png"}
+    truncated = _truncate_large_strings(large)
+    assert truncated["imageBase64"] == "<1000 chars, omitted from live event>"
+    assert truncated["mimeType"] == "image/png"  # short fields untouched
+
+    in_a_list = _truncate_large_strings({"sources": ["x" * 1000, "short"]})
+    assert in_a_list["sources"][0] == "<1000 chars, omitted from live event>"
+    assert in_a_list["sources"][1] == "short"
+
+
+async def test_to_event_payload_truncates_result_but_not_the_real_content(tools):
+    """The broadcast copy (to_event_payload) shrinks a large field; the real
+    ToolResult.content that the task actually keeps/persists is untouched --
+    only what goes out over the live event feed changes."""
+    result = ToolResult(
+        tool="generate_image", server="image", params={}, ok=True, duration_ms=10,
+        content={"imageBase64": "x" * 1000, "mimeType": "image/png"},
+    )
+
+    payload = result.to_event_payload()
+
+    assert payload["result"]["imageBase64"] == "<1000 chars, omitted from live event>"
+    assert result.content["imageBase64"] == "x" * 1000  # unchanged

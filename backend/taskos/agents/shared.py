@@ -29,14 +29,22 @@ def extract_sources(namespace: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def normalize_result(result: Any) -> dict[str, Any]:
-    """Turn a task's raw result -- a plain string (Writer) or a
-    {summary, sources} dict (Research/Synthesis) -- into one consistent
-    {"text": str, "sources": [...]} envelope.
+    """Turn a task's raw result -- a plain string (Writer), a
+    {summary, sources} dict (Research/Synthesis), or a
+    {summary, image} dict (Illustrator) -- into one consistent
+    {"text": str, "sources": [...], "image": {...} | None} envelope.
 
-    Used to build a Run's final_output: the dashboard always renders
-    `text` as markdown and `sources` as a list, regardless of which agent
-    type happened to produce the last task in the DAG.
+    Used to build a Run's final_output: the dashboard always renders `text`
+    as markdown, `sources` as a list, and `image` (when present) as a
+    picture, regardless of which agent type happened to produce the last
+    task in the DAG. `image` is the one field every other agent leaves
+    unset -- this is the generic-payload principle in practice: adding a
+    new result *shape* costs one optional key here, not a dashboard rewrite.
     """
     if isinstance(result, dict) and result.get("summary"):
-        return {"text": result["summary"], "sources": result.get("sources", [])}
-    return {"text": "" if result is None else str(result), "sources": []}
+        return {
+            "text": result["summary"],
+            "sources": result.get("sources", []),
+            "image": result.get("image"),
+        }
+    return {"text": "" if result is None else str(result), "sources": [], "image": None}
