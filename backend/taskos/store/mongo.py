@@ -13,6 +13,7 @@ parallel branches of the DAG never write to the same document.
 from __future__ import annotations
 
 import logging
+from datetime import timezone
 from typing import Any
 
 from pymongo import AsyncMongoClient, ASCENDING, DESCENDING, ReturnDocument
@@ -36,7 +37,17 @@ class MongoStore(StateStore):
     async def connect(self) -> None:
         if self._client is not None:
             return
-        self._client = AsyncMongoClient(self._uri, serverSelectionTimeoutMS=8000)
+        # tz_aware=True: BSON always stores datetimes as UTC, but pymongo's
+        # default is to hand them back as naive Python datetimes (tzinfo=None).
+        # A naive value serializes to JSON with no UTC marker (no "Z"/"+00:00"),
+        # and JavaScript's Date parser then reads that as *local browser time*
+        # -- silently shifting every timestamp by the viewer's UTC offset. Hit
+        # in production: run.createdAt came back naive, so the frontend's
+        # elapsed-time calculation (comparing it against the correctly-UTC
+        # Date.now()) was off by exactly the browser's timezone offset.
+        self._client = AsyncMongoClient(
+            self._uri, serverSelectionTimeoutMS=8000, tz_aware=True, tzinfo=timezone.utc
+        )
         await self._client.admin.command("ping")
         await self._ensure_indexes()
         logger.info("Connected to MongoDB database %r", self._database)
