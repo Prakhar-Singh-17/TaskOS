@@ -112,6 +112,41 @@ async def get_run(run_id: str):
     }
 
 
+@app.post("/api/runs/{run_id}/tasks/{task_id}/run-code")
+async def run_drafted_code(run_id: str, task_id: str):
+    """Manually execute a Coder task's drafted-but-unverified code.
+
+    The one interactive action in TaskOS that happens after a run has
+    already finished: Coder sometimes writes correct code but skips running
+    it (needs a live database/API/credentials the sandbox can't provide --
+    see coder.py's NOTE: marker). This lets the user try running it anyway,
+    on demand. Deliberately not persisted back onto the task/run -- this is
+    a one-off "try it" action, not part of the recorded pipeline history.
+    """
+    run = await app.state.store.get_run(run_id)
+    if run is None:
+        raise HTTPException(404, f"No such run: {run_id}")
+    task = next((t for t in run.tasks if t.task_id == task_id), None)
+    if task is None:
+        raise HTTPException(404, f"No such task: {task_id}")
+
+    code = task.result.get("code") if isinstance(task.result, dict) else None
+    if not code or code.get("stdout") is not None:
+        raise HTTPException(400, "This task has no unexecuted code draft to run")
+
+    tool_result = await app.state.tools.call_tool(
+        "execute_code", {"code": code["source"], "language": code["language"]}
+    )
+    if not tool_result.ok:
+        return {"ok": False, "message": tool_result.error or "execute_code tool call failed"}
+
+    output = tool_result.content
+    if not output.get("exitOk"):
+        return {"ok": False, "message": output.get("stderr") or "code exited with an error"}
+
+    return {"ok": True, "stdout": output.get("stdout", "")}
+
+
 @app.get("/api/runs/{run_id}/events")
 async def get_run_events(run_id: str):
     events = await app.state.store.get_events(run_id)

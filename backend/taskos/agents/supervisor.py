@@ -37,11 +37,13 @@ Available agent types: {_AGENT_NAMES}
   the goal explicitly asks for a picture, illustration, logo, diagram, or visual
   -- never for a goal that just happens to be about a visual subject (e.g.
   researching a painter does not need an illustrator task).
-- "coder": writes and runs a short Python script. Use it ONLY for a goal that
-  needs a computation, algorithm, or data transformation carried out (e.g. "is
-  17 prime?", "sort this list", "compute compound interest on $500 at 5% for
-  10 years") -- never for research or anything requiring internet access, file
-  access, or user input, since the code runs headless with no network.
+- "coder": writes a short script (Python or JavaScript) and, when possible, runs it
+  and shows real output. Use it for any goal asking for code, a function, or a
+  script -- a pure computation (e.g. "is 17 prime?", "sort this list") that it
+  can run and verify itself, AND a goal needing external resources it can't
+  reach headless (e.g. "connect to my database", "call this API") where it
+  still writes correct code as a deliverable, just without running it. Never
+  for research (use "research" for that).
 
 Rules:
 - Give every task a short local label for "id" (e.g. "r1", "r2", "synth", "write").
@@ -52,12 +54,14 @@ Rules:
   desired picture directly (subject, style, composition), not "generate an image of...".
 - A coder task must be standalone: "depends_on" must be empty. It cannot use
   another task's findings (e.g. research output) as input.
-- If the goal cannot be accomplished by any of the available agents -- e.g. it asks
-  you to control the user's device, open/run/install/delete something on their
-  computer, send a message or email, browse or act on an account, or take any other
-  real-world action instead of researching, writing, or illustrating -- do not
-  output a task array. Output exactly this JSON object instead, with no other keys:
-  {{"unsupported": true}}
+- A goal asking for code, a function, or a script -- even one that would need a
+  live database, an API, or hardware to actually run -- is always in scope: give
+  it a "coder" task. Only refuse a goal that asks TaskOS itself to directly
+  perform a real-world action right now (open/run/install/delete something on
+  the user's own device, send a message or email, browse or act on an account)
+  instead of producing a research report, an image, or code as a deliverable.
+  For that kind of goal, do not output a task array -- output exactly this JSON
+  object instead, with no other keys: {{"unsupported": true}}
 - Otherwise, output ONLY a JSON array, no prose, no markdown fences. Each element:
   {{"id": "<local label>", "description": "<specific, actionable task description>",
     "agent": "<one of: {_AGENT_NAMES}>", "depends_on": ["<local label>", ...]}}

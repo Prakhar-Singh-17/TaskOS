@@ -43,6 +43,54 @@ def test_get_unknown_run_is_404(client):
     assert response.status_code == 404
 
 
+def _seed_coder_task(client, code: dict) -> Task:
+    run = Run(goal="write me some code", status=RunStatus.COMPLETED)
+    task = Task(run_id=run.run_id, description="write it", assigned_agent=AgentType.CODER)
+    task.result = {"summary": "Drafted code for: write it", "code": code}
+    task.status = "done"
+    run.tasks = [task]
+    asyncio.run(client.store.create_run(run))
+    return task
+
+
+def test_run_drafted_code_executes_an_unexecuted_draft(client):
+    task = _seed_coder_task(client, {
+        "source": "print(1)", "language": "python", "stdout": None, "note": "needs a live database",
+    })
+
+    response = client.post(f"/api/runs/{task.run_id}/tasks/{task.task_id}/run-code")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert "mock mode" in body["stdout"]  # TASKOS_CODE_MODE=mock for the whole suite
+
+
+def test_run_drafted_code_404s_for_unknown_run(client):
+    response = client.post("/api/runs/run_does_not_exist/tasks/task_x/run-code")
+    assert response.status_code == 404
+
+
+def test_run_drafted_code_404s_for_unknown_task(client):
+    task = _seed_coder_task(client, {
+        "source": "print(1)", "language": "python", "stdout": None, "note": "needs a live database",
+    })
+
+    response = client.post(f"/api/runs/{task.run_id}/tasks/task_does_not_exist/run-code")
+
+    assert response.status_code == 404
+
+
+def test_run_drafted_code_400s_when_already_executed(client):
+    task = _seed_coder_task(client, {
+        "source": "print(1)", "language": "python", "stdout": "1\n", "note": None,
+    })
+
+    response = client.post(f"/api/runs/{task.run_id}/tasks/{task.task_id}/run-code")
+
+    assert response.status_code == 400
+
+
 def test_create_run_returns_immediately_with_a_run_id(client, monkeypatch):
     started = {}
 

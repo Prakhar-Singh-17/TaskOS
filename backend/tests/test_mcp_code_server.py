@@ -17,6 +17,11 @@ async def test_empty_code_is_rejected():
         await execute_code("   ")
 
 
+async def test_javascript_is_a_supported_language():
+    result = await execute_code("console.log(1)", language="javascript")
+    assert result["exitOk"] is True
+
+
 async def test_unsupported_language_is_rejected():
     with pytest.raises(ValueError, match="Unsupported language"):
-        await execute_code("console.log(1)", language="javascript")
+        await execute_code("puts 1", language="ruby")

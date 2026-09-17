@@ -1,11 +1,17 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { runDraftedCode } from '../api'
 
 // The thing a user actually came here for, sitting inline above the pipeline.
 // Rendered as real markdown -- the Writer/Synthesis agents emit headings, bold
 // and lists -- with sources as chips rather than a bare link list.
 export default function FinalResult({ run }) {
   const [copied, setCopied] = useState(false)
+  // Coder sometimes drafts code without running it (needs a live database/API/
+  // credentials the sandbox can't provide -- see coder.py's NOTE: marker).
+  // This lets the user try running it anyway, on demand -- the one action in
+  // TaskOS that happens after a run has already finished.
+  const [manualRun, setManualRun] = useState({ status: 'idle' })
   const output = run.finalOutput
 
   if (!output || !output.text) {
@@ -27,6 +33,26 @@ export default function FinalResult({ run }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     })
+  }
+
+  // Coder tasks are standalone, so there's at most one -- find whichever
+  // task actually produced this draft so the manual run hits the right one.
+  const codeTask = run.tasks?.find((t) => t.assignedAgent === 'coder' && t.result?.code)
+  const isUnexecutedDraft = output.code && output.code.stdout == null
+
+  async function handleRunAnyway() {
+    if (!codeTask) return
+    setManualRun({ status: 'loading' })
+    try {
+      const result = await runDraftedCode(run.runId, codeTask.taskId)
+      setManualRun(
+        result.ok
+          ? { status: 'done', stdout: result.stdout }
+          : { status: 'error', message: result.message }
+      )
+    } catch (err) {
+      setManualRun({ status: 'error', message: err.message })
+    }
   }
 
   return (
@@ -62,10 +88,41 @@ export default function FinalResult({ run }) {
           <pre className="m-0 max-h-64 overflow-y-auto rounded-xl border border-line bg-panel p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
             {output.code.source}
           </pre>
+
           {output.code.stdout && (
             <pre className="m-0 max-h-40 overflow-y-auto rounded-xl border border-line bg-bg p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
               {output.code.stdout}
             </pre>
+          )}
+
+          {isUnexecutedDraft && (
+            <div className="flex flex-col gap-2">
+              <p className="m-0 text-[12px] text-amber-600 dark:text-amber-400">
+                Not run automatically — {output.code.note}
+              </p>
+              {manualRun.status === 'idle' && (
+                <button
+                  type="button"
+                  onClick={handleRunAnyway}
+                  className="w-fit rounded-lg border border-line px-3 py-1.5 font-mono text-[10.5px] tracking-[0.08em] uppercase text-ink-2 transition-colors hover:border-acc hover:text-ink"
+                >
+                  Run anyway
+                </button>
+              )}
+              {manualRun.status === 'loading' && (
+                <p className="m-0 text-[12px] text-ink-3">Running…</p>
+              )}
+              {manualRun.status === 'done' && (
+                <pre className="m-0 max-h-40 overflow-y-auto rounded-xl border border-line bg-bg p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
+                  {manualRun.stdout}
+                </pre>
+              )}
+              {manualRun.status === 'error' && (
+                <p className="m-0 text-[12px] text-red-600 dark:text-red-400">
+                  Couldn't run this here — {manualRun.message}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}

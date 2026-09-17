@@ -38,4 +38,8 @@ export function listTools() {
   return request('/api/tools')
 }
 
+export function runDraftedCode(runId, taskId) {
+  return request(`/api/runs/${runId}/tasks/${taskId}/run-code`, { method: 'POST' })
+}
+
 export { API_URL }

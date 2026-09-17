@@ -87,7 +87,7 @@ async def test_successful_run_writes_code_result_to_state(monkeypatch, store):
     assert stored["code_result"] == result
 
 
-async def test_markdown_fences_are_stripped_from_generated_code(monkeypatch, store):
+async def test_python_fence_is_parsed_into_code_and_language(monkeypatch, store):
     async def fake_generate_text(prompt, *, system_instruction=None):
         return "```python\nprint('hi')\n```"
 
@@ -98,6 +98,36 @@ async def test_markdown_fences_are_stripped_from_generated_code(monkeypatch, sto
     result = await coder.run(task, tools=tools, store=store)
 
     assert result["code"]["source"] == "print('hi')"
+    assert result["code"]["language"] == "python"
+    assert tools.calls == [("execute_code", {"code": "print('hi')", "language": "python"})]
+
+
+async def test_javascript_fence_is_parsed_and_passed_through(monkeypatch, store):
+    async def fake_generate_text(prompt, *, system_instruction=None):
+        return "```javascript\nconsole.log('hi')\n```"
+
+    monkeypatch.setattr(coder, "generate_text", fake_generate_text)
+    task = make_task()
+    tools = FakeTools(execution_success())
+
+    result = await coder.run(task, tools=tools, store=store)
+
+    assert result["code"]["source"] == "console.log('hi')"
+    assert result["code"]["language"] == "javascript"
+    assert tools.calls == [("execute_code", {"code": "console.log('hi')", "language": "javascript"})]
+
+
+async def test_missing_fence_defaults_to_python(monkeypatch, store):
+    async def fake_generate_text(prompt, *, system_instruction=None):
+        return "print('no fence here')"
+
+    monkeypatch.setattr(coder, "generate_text", fake_generate_text)
+    task = make_task()
+    tools = FakeTools(execution_success())
+
+    result = await coder.run(task, tools=tools, store=store)
+
+    assert result["code"]["language"] == "python"
 
 
 async def test_tool_call_failure_raises_tool_call_error(monkeypatch, store):
@@ -124,6 +154,30 @@ async def test_code_execution_failure_raises_code_execution_error(monkeypatch, s
 
     with pytest.raises(CodeExecutionError, match="NameError"):
         await coder.run(task, tools=tools, store=store)
+
+
+async def test_a_note_marked_draft_is_never_executed(monkeypatch, store):
+    """Gemini flagging its own code as unverifiable (a leading NOTE: line)
+    must skip execute_code entirely -- retrying a live-network task three
+    times would just fail the same way three times."""
+    async def fake_generate_text(prompt, *, system_instruction=None):
+        return "NOTE: needs a live MongoDB connection\n```javascript\nconsole.log('connect')\n```"
+
+    monkeypatch.setattr(coder, "generate_text", fake_generate_text)
+    task = make_task()
+    tools = FakeTools(execution_success())
+
+    result = await coder.run(task, tools=tools, store=store)
+
+    assert tools.calls == []  # never attempted
+    assert result["summary"] == f"Drafted code for: {task.description}"
+    assert result["code"]["source"] == "console.log('connect')"
+    assert result["code"]["language"] == "javascript"
+    assert result["code"]["stdout"] is None
+    assert result["code"]["note"] == "needs a live MongoDB connection"
+
+    stored = await store.read_state(RUN_ID, task.task_id)
+    assert stored["code_result"] == result
 
 
 async def test_a_prior_failed_attempts_error_is_fed_into_the_next_prompt(monkeypatch, store):

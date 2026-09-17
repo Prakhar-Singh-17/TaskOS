@@ -29,10 +29,14 @@ from taskos.config import settings
 JUDGE0_ENDPOINT = "https://ce.judge0.com/submissions"
 REQUEST_TIMEOUT = 30.0
 
-# Python 3, the only language this tool supports for now -- one language
-# keeps the prompt, the result shape, and the demo narrative simple. Add to
-# this map if another language is ever needed; nothing else has to change.
-LANGUAGE_IDS = {"python": 71}
+# Judge0 CE supports 60+ languages -- this is deliberately a small subset,
+# not a technical ceiling. Add an entry here (verify the id against
+# https://ce.judge0.com/languages first) and nothing else in this file
+# changes.
+LANGUAGE_IDS = {
+    "python": 71,       # Python (3.8.1)
+    "javascript": 97,   # JavaScript (Node.js 20.17.0)
+}
 
 # Judge0's numeric status for a clean run. Anything else (compile error,
 # runtime error, time limit exceeded, ...) means the code itself failed,
@@ -80,13 +84,13 @@ async def _judge0_execute(code: str, stdin: str, language_id: int) -> dict[str, 
 
 @mcp.tool()
 async def execute_code(code: str, stdin: str = "", language: str = "python") -> dict[str, Any]:
-    """Run a short Python snippet in an isolated sandbox and return its output.
+    """Run a short script in an isolated sandbox and return its output.
 
     Args:
-        code: The Python source to run. Must print anything it wants
-            reported back -- there is no separate return value.
+        code: The source to run. Must print anything it wants reported
+            back -- there is no separate return value.
         stdin: Optional input fed to the program's stdin.
-        language: Only "python" is supported right now.
+        language: One of: python, javascript.
 
     Returns:
         A dict with `stdout`, `stderr`, and `exitOk` (False if the code
