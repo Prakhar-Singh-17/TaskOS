@@ -56,6 +56,7 @@ class AgentType(str, Enum):
     WRITER = "writer"
     SYNTHESIS = "synthesis"
     ILLUSTRATOR = "illustrator"
+    CODER = "coder"
 
 
 class FailureKind(str, Enum):
@@ -64,6 +65,7 @@ class FailureKind(str, Enum):
     TOOL_FAILURE = "tool_failure"        # MCP call errored / transport broke
     EMPTY_RESULT = "empty_result"        # tool worked, found nothing -> reword
     MALFORMED_OUTPUT = "malformed_output"  # agent returned unparseable output
+    CODE_FAILED = "code_failed"          # generated code ran but errored -> fix and retry
     TIMEOUT = "timeout"
     LLM_ERROR = "llm_error"
     DEPENDENCY_FAILED = "dependency_failed"  # never retried
@@ -74,6 +76,7 @@ RETRYABLE_FAILURES = {
     FailureKind.TOOL_FAILURE,
     FailureKind.EMPTY_RESULT,
     FailureKind.MALFORMED_OUTPUT,
+    FailureKind.CODE_FAILED,
     FailureKind.TIMEOUT,
     FailureKind.LLM_ERROR,
 }

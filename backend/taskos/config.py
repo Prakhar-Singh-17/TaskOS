@@ -48,6 +48,13 @@ class Settings:
     image_mode: str = field(
         default_factory=lambda: os.getenv("TASKOS_IMAGE_MODE", "live").lower()
     )
+    # Judge0 CE's public instance is also free and keyless, so this defaults
+    # live too. It's a free community instance backing a paid SaaS tier
+    # (same relationship Pollinations has to a paid image API) -- no uptime
+    # guarantee, so tests still force this to "mock".
+    code_mode: str = field(
+        default_factory=lambda: os.getenv("TASKOS_CODE_MODE", "live").lower()
+    )
 
     # State store
     mongodb_uri: str = field(default_factory=lambda: os.getenv("MONGODB_URI", ""))

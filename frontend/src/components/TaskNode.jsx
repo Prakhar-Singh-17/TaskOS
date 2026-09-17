@@ -117,6 +117,10 @@ export default function TaskNode({ task, taskById, x, y, delay = 0 }) {
               alt=""
               className="max-h-40 w-full rounded-lg border border-line object-cover"
             />
+          ) : task.result?.code ? (
+            <pre className="m-0 max-h-40 overflow-y-auto rounded-lg border border-line bg-panel p-2.5 font-mono text-[10.5px] break-words whitespace-pre-wrap text-ink-2">
+              {task.result.code.source}
+            </pre>
           ) : (
             task.result != null && (
               <pre className="m-0 max-h-48 overflow-y-auto rounded-lg border border-line bg-panel p-2.5 font-mono text-[10.5px] break-words whitespace-pre-wrap text-ink-2">

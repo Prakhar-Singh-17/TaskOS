@@ -15,4 +15,5 @@ import os
 
 os.environ.setdefault("TASKOS_SEARCH_MODE", "mock")
 os.environ.setdefault("TASKOS_IMAGE_MODE", "mock")
+os.environ.setdefault("TASKOS_CODE_MODE", "mock")
 os.environ.setdefault("RETRY_BACKOFF_SECONDS", "0")

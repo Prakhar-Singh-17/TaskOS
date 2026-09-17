@@ -28,4 +28,5 @@ def _stdio(module: str) -> StdioServerParameters:
 MCP_SERVERS: dict[str, StdioServerParameters] = {
     "search": _stdio("taskos.mcp_servers.search_server"),
     "image": _stdio("taskos.mcp_servers.image_server"),
+    "code": _stdio("taskos.mcp_servers.code_server"),
 }

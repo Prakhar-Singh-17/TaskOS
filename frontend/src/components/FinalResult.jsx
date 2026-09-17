@@ -57,6 +57,19 @@ export default function FinalResult({ run }) {
         />
       )}
 
+      {output.code && (
+        <div className="mb-4 flex flex-col gap-2">
+          <pre className="m-0 max-h-64 overflow-y-auto rounded-xl border border-line bg-panel p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
+            {output.code.source}
+          </pre>
+          {output.code.stdout && (
+            <pre className="m-0 max-h-40 overflow-y-auto rounded-xl border border-line bg-bg p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
+              {output.code.stdout}
+            </pre>
+          )}
+        </div>
+      )}
+
       <div
         className="max-w-[72ch] text-[14.5px] leading-[1.7] text-ink-2
           [&_code]:rounded [&_code]:bg-bg [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.88em]

@@ -27,3 +27,12 @@ class EmptyResultError(AgentError):
 
 class MissingDependencyOutputError(AgentError):
     """None of this task's dependencies left usable output in shared state."""
+
+
+class CodeExecutionError(AgentError):
+    """Generated code ran (the sandbox call itself succeeded) but exited with
+    an error -- a compile error, an exception, a non-zero exit status.
+
+    Distinct from ToolCallError the same way EmptyResultError is: the tool
+    call worked fine, the *result* is what needs fixing.
+    """

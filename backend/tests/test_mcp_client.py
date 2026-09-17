@@ -17,11 +17,13 @@ async def tools():
 
 async def test_discovers_tools_from_every_registered_server(tools):
     specs = {s.name: s for s in tools.list_tools()}
-    assert set(specs) == {"search", "generate_image"}
+    assert set(specs) == {"search", "generate_image", "execute_code"}
     assert specs["search"].server == "search"
     assert "query" in specs["search"].input_schema.get("properties", {})
     assert specs["generate_image"].server == "image"
     assert "prompt" in specs["generate_image"].input_schema.get("properties", {})
+    assert specs["execute_code"].server == "code"
+    assert "code" in specs["execute_code"].input_schema.get("properties", {})
 
 
 async def test_tool_catalogue_shape_for_llm(tools):

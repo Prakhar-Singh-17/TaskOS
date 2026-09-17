@@ -35,7 +35,7 @@ def test_list_tools_returns_every_registered_tool(client):
     response = client.get("/api/tools")
     assert response.status_code == 200
     names = {t["name"] for t in response.json()}
-    assert names == {"search", "generate_image"}
+    assert names == {"search", "generate_image", "execute_code"}
 
 
 def test_get_unknown_run_is_404(client):

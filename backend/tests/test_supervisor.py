@@ -72,6 +72,32 @@ async def test_plan_can_include_an_illustrator_task(monkeypatch):
     assert run.tasks[0].assigned_agent is AgentType.ILLUSTRATOR
 
 
+async def test_plan_can_include_a_coder_task(monkeypatch):
+    """The Supervisor accepts "coder" as a valid agent, same proof as the
+    illustrator test: adding a new AgentType required no change to the
+    plan-parsing logic itself, only the enum and the system prompt."""
+    _mock_plan(monkeypatch, [
+        {"id": "code", "description": "Check whether 97 is prime", "agent": "coder", "depends_on": []},
+    ])
+
+    run = await supervisor.plan("Is 97 a prime number?")
+
+    assert len(run.tasks) == 1
+    assert run.tasks[0].assigned_agent is AgentType.CODER
+
+
+async def test_coder_task_with_a_dependency_is_rejected(monkeypatch):
+    """Coder tasks are standalone-only for now -- they can't consume another
+    task's findings, so a plan that gives one a dependency is malformed."""
+    _mock_plan(monkeypatch, [
+        {"id": "r1", "description": "research something", "agent": "research", "depends_on": []},
+        {"id": "code", "description": "use the research", "agent": "coder", "depends_on": ["r1"]},
+    ])
+
+    with pytest.raises(LLMMalformedOutputError, match="coder task but has depends_on"):
+        await supervisor.plan("goal")
+
+
 # -- goals no agent can do are refused, not force-fit into a plan -------
 
 
@@ -81,7 +107,7 @@ async def test_out_of_scope_goal_raises_instead_of_planning(monkeypatch):
     this must surface as a distinct, non-retryable error, not get rejected
     as merely malformed."""
     _mock_plan(monkeypatch, {"unsupported": True})
-    with pytest.raises(OutOfScopeError, match="research topics and generate images"):
+    with pytest.raises(OutOfScopeError, match="research topics, generate images"):
         await supervisor.plan("open my computer")
 
 
@@ -108,9 +134,9 @@ async def test_missing_field_is_rejected(monkeypatch):
 
 async def test_unknown_agent_type_is_rejected(monkeypatch):
     _mock_plan(monkeypatch, [
-        {"id": "r1", "description": "do a thing", "agent": "coder", "depends_on": []},
+        {"id": "r1", "description": "do a thing", "agent": "planner", "depends_on": []},
     ])
-    with pytest.raises(LLMMalformedOutputError, match="unknown agent type 'coder'"):
+    with pytest.raises(LLMMalformedOutputError, match="unknown agent type 'planner'"):
         await supervisor.plan("goal")
 
 

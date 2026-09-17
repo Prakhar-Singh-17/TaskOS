@@ -14,7 +14,12 @@ Two jobs, kept separate from the runner's scheduling logic:
 
 from __future__ import annotations
 
-from taskos.agents.errors import EmptyResultError, MissingDependencyOutputError, ToolCallError
+from taskos.agents.errors import (
+    CodeExecutionError,
+    EmptyResultError,
+    MissingDependencyOutputError,
+    ToolCallError,
+)
 from taskos.agents.llm import LLMError, LLMMalformedOutputError, LLMTimeoutError
 from taskos.core.models import AgentType, FailureKind, Task
 
@@ -31,6 +36,8 @@ def classify_failure(exc: BaseException) -> FailureKind:
         # Nothing usable to work with -- same recovery bucket as an empty
         # search result, even though it isn't a search at all.
         return FailureKind.EMPTY_RESULT
+    if isinstance(exc, CodeExecutionError):
+        return FailureKind.CODE_FAILED
     if isinstance(exc, ToolCallError):
         return FailureKind.TOOL_FAILURE
     if isinstance(exc, LLMTimeoutError):

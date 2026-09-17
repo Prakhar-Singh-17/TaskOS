@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
-from taskos.agents import illustrator, research, synthesis, writer
+from taskos.agents import coder, illustrator, research, synthesis, writer
 from taskos.core.models import AgentType, Task
 from taskos.mcp_client.client import MCPClientManager
 from taskos.store.base import StateStore
@@ -23,6 +23,7 @@ AGENT_REGISTRY: dict[AgentType, AgentFn] = {
     AgentType.WRITER: writer.run,
     AgentType.SYNTHESIS: synthesis.run,
     AgentType.ILLUSTRATOR: illustrator.run,
+    AgentType.CODER: coder.run,
 }
 
 

@@ -37,6 +37,11 @@ Available agent types: {_AGENT_NAMES}
   the goal explicitly asks for a picture, illustration, logo, diagram, or visual
   -- never for a goal that just happens to be about a visual subject (e.g.
   researching a painter does not need an illustrator task).
+- "coder": writes and runs a short Python script. Use it ONLY for a goal that
+  needs a computation, algorithm, or data transformation carried out (e.g. "is
+  17 prime?", "sort this list", "compute compound interest on $500 at 5% for
+  10 years") -- never for research or anything requiring internet access, file
+  access, or user input, since the code runs headless with no network.
 
 Rules:
 - Give every task a short local label for "id" (e.g. "r1", "r2", "synth", "write").
@@ -45,6 +50,8 @@ Rules:
   independent subjects (e.g. multiple companies). Otherwise use one research task.
 - An illustrator task's description is the image prompt itself -- describe the
   desired picture directly (subject, style, composition), not "generate an image of...".
+- A coder task must be standalone: "depends_on" must be empty. It cannot use
+  another task's findings (e.g. research output) as input.
 - If the goal cannot be accomplished by any of the available agents -- e.g. it asks
   you to control the user's device, open/run/install/delete something on their
   computer, send a message or email, browse or act on an account, or take any other
@@ -57,8 +64,8 @@ Rules:
 """
 
 _OUT_OF_SCOPE_MESSAGE = (
-    "TaskOS is currently only able to research topics and generate images -- "
-    "it can't take real-world actions like this yet."
+    "TaskOS is currently only able to research topics, generate images, and "
+    "run short code snippets -- it can't take real-world actions like this yet."
 )
 
 
@@ -105,6 +112,8 @@ async def plan(goal: str) -> Run:
             ) from None
         if agent not in _ASSIGNABLE_AGENTS:
             raise LLMMalformedOutputError(f"Task '{label}' cannot be assigned to '{agent_name}'")
+        if agent is AgentType.CODER and item.get("depends_on"):
+            raise LLMMalformedOutputError(f"Task '{label}' is a coder task but has depends_on")
 
         task = Task(
             run_id=run.run_id,
