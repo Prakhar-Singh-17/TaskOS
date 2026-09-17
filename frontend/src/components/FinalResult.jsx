@@ -7,6 +7,7 @@ import { runDraftedCode } from '../api'
 // and lists -- with sources as chips rather than a bare link list.
 export default function FinalResult({ run }) {
   const [copied, setCopied] = useState(false)
+  const [codeCopied, setCodeCopied] = useState(false)
   // Coder sometimes drafts code without running it (needs a live database/API/
   // credentials the sandbox can't provide -- see coder.py's NOTE: marker).
   // This lets the user try running it anyway, on demand -- the one action in
@@ -32,6 +33,13 @@ export default function FinalResult({ run }) {
     navigator.clipboard?.writeText(output.text).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  function handleCopyCode() {
+    navigator.clipboard?.writeText(output.code.source).then(() => {
+      setCodeCopied(true)
+      setTimeout(() => setCodeCopied(false), 1500)
     })
   }
 
@@ -85,12 +93,21 @@ export default function FinalResult({ run }) {
 
       {output.code && (
         <div className="mb-4 flex flex-col gap-2">
-          <pre className="m-0 max-h-64 overflow-y-auto rounded-xl border border-line bg-panel p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
-            {output.code.source}
-          </pre>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="absolute top-2.5 right-2.5 rounded-lg border border-line bg-panel px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] uppercase text-ink-2 transition-colors hover:border-acc hover:text-ink"
+            >
+              {codeCopied ? 'Copied' : 'Copy'}
+            </button>
+            <pre className="m-0 max-h-96 overflow-y-auto rounded-xl border border-line bg-panel p-3.5 pr-16 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
+              {output.code.source}
+            </pre>
+          </div>
 
           {output.code.stdout && (
-            <pre className="m-0 max-h-40 overflow-y-auto rounded-xl border border-line bg-bg p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
+            <pre className="m-0 max-h-52 overflow-y-auto rounded-xl border border-line bg-bg p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
               {output.code.stdout}
             </pre>
           )}
@@ -113,7 +130,7 @@ export default function FinalResult({ run }) {
                 <p className="m-0 text-[12px] text-ink-3">Running…</p>
               )}
               {manualRun.status === 'done' && (
-                <pre className="m-0 max-h-40 overflow-y-auto rounded-xl border border-line bg-bg p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
+                <pre className="m-0 max-h-52 overflow-y-auto rounded-xl border border-line bg-bg p-3.5 font-mono text-[12px] leading-[1.5] break-words whitespace-pre-wrap text-ink-2">
                   {manualRun.stdout}
                 </pre>
               )}

@@ -19,6 +19,13 @@ guaranteed outcome. So Gemini is asked to flag that case itself (a leading
 present, this agent skips execute_code entirely and returns the draft as a
 successful result with no stdout, letting the dashboard offer a manual
 "run it anyway" action instead of an automatic one.
+
+Gemini's first instinct when it hits a missing package (e.g. no `mongodb`
+driver in the sandbox) isn't always to flag it -- observed live, it once
+wrote a "connection" that only checked the URI's string format and always
+reported success, entirely sidestepping the real (missing) driver. The
+prompt explicitly forbids that now: a task it can't genuinely satisfy must
+use the NOTE: flag, not a simulation that looks like a working deliverable.
 """
 
 from __future__ import annotations
@@ -41,16 +48,26 @@ Rules:
 - Choose whichever of these languages best fits the task: {", ".join(SUPPORTED_LANGUAGES)}.
   Default to Python unless the task specifically implies JavaScript/Node.js.
 - The script runs headless in an isolated sandbox with NO network access, NO
-  filesystem access, NO real credentials, and NO command-line input.
+  filesystem access, NO third-party packages beyond each language's standard
+  library, NO real credentials, and NO command-line input.
 - If the task can be fully solved within those constraints (a computation,
   algorithm, or data transformation), write it so it prints a real,
   verifiable result -- this is the normal case.
-- If the task genuinely requires something the sandbox cannot provide (a live
-  database/API connection, real credentials, file or network I/O), still
-  write correct, idiomatic code for it -- but first output exactly one line:
+- If the task genuinely requires something the sandbox cannot provide (a
+  third-party package such as a database driver, a live database/API
+  connection, real credentials, or file/network I/O), still write correct,
+  idiomatic code for it exactly as it would look in a real environment that
+  has that package/resource -- but first output exactly one line:
   NOTE: <one short sentence saying what this sandbox can't provide>
   before the code fence. This tells TaskOS not to attempt to run it
   automatically; the user can still choose to run it manually.
+- NEVER write a placeholder or simulation that works around a missing
+  package or resource by skipping the real operation and unconditionally
+  reporting success (e.g. checking a connection string's format instead of
+  actually connecting, or returning fake data instead of really fetching
+  it). That produces code that looks like it works but silently does
+  nothing real -- use the NOTE: flag for that case instead of working
+  around it.
 - After that optional NOTE line, output ONLY a single fenced code block
   tagged with the language, e.g. ```python or ```javascript -- no other prose.
 """
